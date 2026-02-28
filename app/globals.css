@@ -1,26 +1,60 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-primary: #f8f9fb;
+  --bg-soft: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f4;
+  --accent: #6fb833;
+  --text-main: #1f2a37;
+  --text-soft: #617084;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 8%, #f1f5f9 0%, transparent 30%),
+    radial-gradient(circle at 88% 88%, #e8eef6 0%, transparent 35%),
+    linear-gradient(140deg, #ffffff 0%, #f7fafc 100%);
+  color: var(--text-main);
+  font-family: var(--font-montserrat), "Segoe UI", sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-oswald), var(--font-montserrat), sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.tomir-admin {
+  background:
+    radial-gradient(circle at 12% 0%, #eef3f8 0%, transparent 34%),
+    radial-gradient(circle at 100% 100%, #e7f2dd 0%, transparent 30%),
+    linear-gradient(170deg, #ffffff 0%, #f8fafc 68%, #f2f6fa 100%);
+}
+
+.tomir-admin-head {
+  background: linear-gradient(90deg, #ffffff 0%, #f7f9fc 50%, #eef3f8 100%);
+}
+
+.tomir-admin input,
+.tomir-admin select,
+.tomir-admin textarea {
+  outline: none;
+  border-color: #e3d3cc;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tomir-admin input:focus,
+.tomir-admin select:focus,
+.tomir-admin textarea:focus {
+  border-color: #8c0f16;
+  box-shadow: 0 0 0 3px #8c0f161f;
 }
