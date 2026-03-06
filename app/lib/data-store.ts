@@ -823,6 +823,22 @@ export function deleteCategory(categoryId: number) {
   return true;
 }
 
+export function updateCategory(
+  categoryId: number,
+  input: { nameRu?: string; nameUz?: string; imageUrl?: string | null },
+) {
+  const category = store.categories.find((item) => item.id === categoryId);
+  if (!category) return null;
+
+  if (input.nameRu !== undefined) category.name_ru = input.nameRu.trim();
+  if (input.nameUz !== undefined) category.name_uz = input.nameUz.trim();
+  if (input.imageUrl !== undefined) category.image_url = input.imageUrl?.trim() || null;
+  category.updated_at = nowIso();
+
+  void persistStore();
+  return category;
+}
+
 export function createProduct(input: {
   categoryId?: number | null;
   titleRu: string;

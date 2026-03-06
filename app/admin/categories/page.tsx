@@ -10,7 +10,9 @@ type Category = { id: number; name_ru: string; name_uz: string; image_url: strin
 export default function CategoriesPage() {
   const [items, setItems] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ nameRu: "", nameUz: "", imageUrl: "" });
   const [uploading, setUploading] = useState(false);
 
@@ -29,7 +31,35 @@ export default function CategoriesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    setOpen(false);
+    setCreateOpen(false);
+    setForm({ nameRu: "", nameUz: "", imageUrl: "" });
+    load();
+  };
+
+  const startEdit = (item: Category) => {
+    setEditingId(item.id);
+    setForm({
+      nameRu: item.name_ru,
+      nameUz: item.name_uz,
+      imageUrl: item.image_url ?? "",
+    });
+    setEditOpen(true);
+  };
+
+  const update = async () => {
+    if (!editingId) return;
+    const response = await fetch(`/api/categories/${editingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      alert(data?.error ?? "Не удалось изменить категорию");
+      return;
+    }
+    setEditOpen(false);
+    setEditingId(null);
     setForm({ nameRu: "", nameUz: "", imageUrl: "" });
     load();
   };
@@ -74,7 +104,14 @@ export default function CategoriesPage() {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <PrimaryButton onClick={() => setOpen(true)}>Добавить</PrimaryButton>
+        <PrimaryButton
+          onClick={() => {
+            setForm({ nameRu: "", nameUz: "", imageUrl: "" });
+            setCreateOpen(true);
+          }}
+        >
+          Добавить
+        </PrimaryButton>
       </Card>
       <div className="grid gap-4 md:grid-cols-2">
         {filteredItems.map((item) => (
@@ -90,7 +127,10 @@ export default function CategoriesPage() {
             ) : null}
             <p className="text-base font-bold text-[#3c2828]">{item.name_ru}</p>
             <p className="text-sm text-[#8d7374]">{item.name_uz}</p>
-            <div className="mt-3">
+            <div className="mt-3 flex gap-2">
+              <GhostButton type="button" onClick={() => startEdit(item)}>
+                Изменить
+              </GhostButton>
               <GhostButton
                 type="button"
                 className="border-[#f1cdcf] text-[#8c0f16] hover:border-[#8c0f16]"
@@ -103,8 +143,8 @@ export default function CategoriesPage() {
         ))}
       </div>
       <Modal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
         title="Новая категория"
         footer={<PrimaryButton onClick={create}>Создать</PrimaryButton>}
       >
@@ -141,6 +181,49 @@ export default function CategoriesPage() {
           {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
           {form.imageUrl ? (
             <Image src={form.imageUrl} alt="preview" width={480} height={240} className="h-32 w-full rounded-2xl object-cover" />
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="Изменить категорию"
+        footer={<PrimaryButton onClick={update}>Сохранить</PrimaryButton>}
+      >
+        <div className="grid gap-3">
+          <input
+            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
+            placeholder="Название RU"
+            value={form.nameRu}
+            onChange={(event) => setForm((prev) => ({ ...prev, nameRu: event.target.value }))}
+          />
+          <input
+            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
+            placeholder="Название UZ"
+            value={form.nameUz}
+            onChange={(event) => setForm((prev) => ({ ...prev, nameUz: event.target.value }))}
+          />
+          <input
+            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
+            placeholder="URL картинки"
+            value={form.imageUrl}
+            onChange={(event) => setForm((prev) => ({ ...prev, imageUrl: event.target.value }))}
+          />
+          <input
+            type="file"
+            accept="image/*"
+            className="rounded-2xl border border-[#ead8d1] bg-white px-4 py-3 text-sm"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              void uploadImage(file);
+              event.currentTarget.value = "";
+            }}
+          />
+          {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
+          {form.imageUrl ? (
+            <Image src={form.imageUrl} alt="preview-edit" width={480} height={240} className="h-32 w-full rounded-2xl object-cover" />
           ) : null}
         </div>
       </Modal>
