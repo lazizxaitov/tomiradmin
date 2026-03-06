@@ -385,26 +385,7 @@ const settingsSeed: Settings = {
   updated_at: seededAt,
 };
 
-const customersSeed: Customer[] = [
-  {
-    id: 1,
-    name: "Aziza Kadirova",
-    phone: "+998901234567",
-    password: "1234",
-    bonus_balance: 1250,
-    created_at: seededAt,
-    updated_at: seededAt,
-  },
-  {
-    id: 2,
-    name: "Bekzod Karimov",
-    phone: "+998935552021",
-    password: "1234",
-    bonus_balance: 540,
-    created_at: seededAt,
-    updated_at: seededAt,
-  },
-];
+const customersSeed: Customer[] = [];
 
 const customerAddressesSeed: CustomerAddress[] = [
   {
@@ -1210,6 +1191,25 @@ export function updateCustomerByAdmin(
   customer.updated_at = nowIso();
   void persistStore();
   return { item: customer };
+}
+
+export function deleteCustomer(customerId: number) {
+  const before = store.customers.length;
+  store.customers = store.customers.filter((item) => item.id !== customerId);
+  const removed = store.customers.length < before;
+  if (!removed) return false;
+
+  store.customer_addresses = store.customer_addresses.filter((item) => item.customer_id !== customerId);
+  store.orders.forEach((order) => {
+    if (order.customer_id === customerId) {
+      order.customer_id = null;
+      order.customer_address_id = null;
+      order.updated_at = nowIso();
+    }
+  });
+
+  void persistStore();
+  return true;
 }
 
 export function listCashierAccounts() {

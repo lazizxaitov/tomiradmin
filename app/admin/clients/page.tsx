@@ -61,6 +61,17 @@ export default function ClientsPage() {
     load();
   };
 
+  const remove = async (id: number) => {
+    if (!window.confirm("Удалить клиента? Это действие нельзя отменить.")) return;
+    const response = await fetch(`/api/clients/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      alert(data?.error ?? "Не удалось удалить клиента");
+      return;
+    }
+    load();
+  };
+
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return items;
@@ -99,8 +110,11 @@ export default function ClientsPage() {
           <Card key={item.id}>
             <p className="text-base font-bold text-[#3c2828]">{item.name}</p>
             <p className="text-sm text-[#8d7374]">{item.phone ?? "-"}</p>
-            <div className="mt-3">
+            <div className="mt-3 flex gap-2">
               <GhostButton type="button" onClick={() => startEdit(item)}>Изменить</GhostButton>
+              <GhostButton type="button" className="border-[#f1cdcf] text-[#8c0f16] hover:border-[#8c0f16]" onClick={() => void remove(item.id)}>
+                Удалить
+              </GhostButton>
             </div>
           </Card>
         ))}

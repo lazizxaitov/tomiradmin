@@ -9,14 +9,16 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const items = store.customers.map((customer) => ({
-    id: customer.id,
-    name: customer.name,
-    phone: customer.phone,
-    bonus_balance: customer.bonus_balance,
-    created_at: customer.created_at,
-    updated_at: customer.updated_at,
-  }));
+  const items = [...store.customers]
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((customer) => ({
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      bonus_balance: customer.bonus_balance,
+      created_at: customer.created_at,
+      updated_at: customer.updated_at,
+    }));
 
   return NextResponse.json({ items });
 }
