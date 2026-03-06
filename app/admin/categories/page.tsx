@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
+import ImageCropUpload from "../_components/image-crop-upload";
 import { Card, GhostButton, Modal, PrimaryButton, SectionTitle } from "../_components/ui";
 
 type Category = { id: number; name_ru: string; name_uz: string; image_url: string | null };
@@ -14,7 +15,6 @@ export default function CategoriesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ nameRu: "", nameUz: "", imageUrl: "" });
-  const [uploading, setUploading] = useState(false);
 
   const load = () =>
     fetch("/api/categories")
@@ -73,19 +73,6 @@ export default function CategoriesPage() {
       return;
     }
     load();
-  };
-
-  const uploadImage = async (file: File) => {
-    const payload = new FormData();
-    payload.append("file", file);
-
-    setUploading(true);
-    const response = await fetch("/api/admin/upload-image", { method: "POST", body: payload });
-    const data = await response.json().catch(() => null);
-    setUploading(false);
-
-    if (!response.ok || !data?.url) return;
-    setForm((prev) => ({ ...prev, imageUrl: data.url }));
   };
 
   const filteredItems = useMemo(() => {
@@ -162,18 +149,15 @@ export default function CategoriesPage() {
             value={form.nameUz}
             onChange={(event) => setForm((prev) => ({ ...prev, nameUz: event.target.value }))}
           />
-          <input
-            type="file"
-            accept="image/*"
-            className="rounded-2xl border border-[#ead8d1] bg-white px-4 py-3 text-sm"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              void uploadImage(file);
-              event.currentTarget.value = "";
-            }}
+          <ImageCropUpload
+            aspect={99 / 92}
+            minWidth={792}
+            minHeight={736}
+            outputWidth={1080}
+            outputHeight={1000}
+            hint="Категория: 99:92, минимум 792x736, рекомендуемо 1080x1000"
+            onUploaded={(url) => setForm((prev) => ({ ...prev, imageUrl: url }))}
           />
-          {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
           {form.imageUrl ? (
             <Image src={form.imageUrl} alt="preview" width={480} height={240} unoptimized className="h-32 w-full rounded-2xl object-cover" />
           ) : null}
@@ -199,18 +183,15 @@ export default function CategoriesPage() {
             value={form.nameUz}
             onChange={(event) => setForm((prev) => ({ ...prev, nameUz: event.target.value }))}
           />
-          <input
-            type="file"
-            accept="image/*"
-            className="rounded-2xl border border-[#ead8d1] bg-white px-4 py-3 text-sm"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              void uploadImage(file);
-              event.currentTarget.value = "";
-            }}
+          <ImageCropUpload
+            aspect={99 / 92}
+            minWidth={792}
+            minHeight={736}
+            outputWidth={1080}
+            outputHeight={1000}
+            hint="Категория: 99:92, минимум 792x736, рекомендуемо 1080x1000"
+            onUploaded={(url) => setForm((prev) => ({ ...prev, imageUrl: url }))}
           />
-          {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
           {form.imageUrl ? (
             <Image src={form.imageUrl} alt="preview-edit" width={480} height={240} unoptimized className="h-32 w-full rounded-2xl object-cover" />
           ) : null}

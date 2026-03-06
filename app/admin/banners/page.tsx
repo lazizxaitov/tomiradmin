@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
+import ImageCropUpload from "../_components/image-crop-upload";
 import { Card, GhostButton, Modal, PrimaryButton, SectionTitle } from "../_components/ui";
 
 type Banner = {
@@ -28,7 +29,6 @@ export default function BannersPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(initialForm);
-  const [uploading, setUploading] = useState(false);
 
   const load = () =>
     fetch("/api/banners")
@@ -96,19 +96,6 @@ export default function BannersPage() {
     load();
   };
 
-  const uploadImage = async (file: File) => {
-    const payload = new FormData();
-    payload.append("file", file);
-
-    setUploading(true);
-    const response = await fetch("/api/admin/upload-image", { method: "POST", body: payload });
-    const data = await response.json().catch(() => null);
-    setUploading(false);
-
-    if (!response.ok || !data?.url) return;
-    setForm((prev) => ({ ...prev, imageUrl: data.url }));
-  };
-
   const formBody = (
     <div className="grid gap-3">
       <input
@@ -138,18 +125,15 @@ export default function BannersPage() {
         />
         Показывать в приложении
       </label>
-      <input
-        type="file"
-        accept="image/*"
-        className="rounded-2xl border border-[#ead8d1] bg-white px-4 py-3 text-sm"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          void uploadImage(file);
-          event.currentTarget.value = "";
-        }}
+      <ImageCropUpload
+        aspect={2 / 1}
+        minWidth={800}
+        minHeight={400}
+        outputWidth={1200}
+        outputHeight={600}
+        hint="Баннер: 2:1, минимум 800x400, рекомендуемо 1200x600"
+        onUploaded={(url) => setForm((prev) => ({ ...prev, imageUrl: url }))}
       />
-      {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
       {form.imageUrl ? (
         <Image src={form.imageUrl} alt="preview" width={600} height={280} unoptimized className="h-36 w-full rounded-2xl object-cover" />
       ) : null}

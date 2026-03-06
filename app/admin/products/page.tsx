@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
+import ImageCropUpload from "../_components/image-crop-upload";
 import { Card, GhostButton, Modal, PrimaryButton, SectionTitle } from "../_components/ui";
 
 type Product = {
@@ -17,6 +18,48 @@ type Product = {
   images?: string[];
 };
 type Category = { id: number; name_ru: string };
+type ProductCropMode = "square" | "detail45" | "detail34";
+
+const productCropPresets: Record<
+  ProductCropMode,
+  {
+    label: string;
+    aspect: number;
+    minWidth: number;
+    minHeight: number;
+    outputWidth: number;
+    outputHeight: number;
+    hint: string;
+  }
+> = {
+  square: {
+    label: "Карточки/корзина (1:1)",
+    aspect: 1,
+    minWidth: 800,
+    minHeight: 800,
+    outputWidth: 1200,
+    outputHeight: 1200,
+    hint: "Товар: 1:1, минимум 800x800, рекомендуемо 1200x1200",
+  },
+  detail45: {
+    label: "Большой экран (4:5)",
+    aspect: 4 / 5,
+    minWidth: 800,
+    minHeight: 1000,
+    outputWidth: 1200,
+    outputHeight: 1500,
+    hint: "Detail: 4:5, минимум 800x1000, рекомендуемо 1200x1500",
+  },
+  detail34: {
+    label: "Большой экран (3:4)",
+    aspect: 3 / 4,
+    minWidth: 810,
+    minHeight: 1080,
+    outputWidth: 1080,
+    outputHeight: 1440,
+    hint: "Detail: 3:4, минимум 810x1080, рекомендуемо 1080x1440",
+  },
+};
 
 const initialForm = {
   titleRu: "",
@@ -39,7 +82,7 @@ export default function ProductsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [form, setForm] = useState(initialForm);
-  const [uploading, setUploading] = useState(false);
+  const [cropMode, setCropMode] = useState<ProductCropMode>("square");
 
   const load = () => {
     Promise.all([fetch("/api/products"), fetch("/api/categories")]).then(async ([productsRes, categoriesRes]) => {
@@ -135,19 +178,6 @@ export default function ProductsPage() {
     load();
   };
 
-  const uploadImage = async (file: File) => {
-    const payload = new FormData();
-    payload.append("file", file);
-
-    setUploading(true);
-    const response = await fetch("/api/admin/upload-image", { method: "POST", body: payload });
-    const data = await response.json().catch(() => null);
-    setUploading(false);
-
-    if (!response.ok || !data?.url) return;
-    setForm((prev) => ({ ...prev, images: [...prev.images, data.url] }));
-  };
-
   const removeImage = (index: number) => {
     setForm((prev) => ({ ...prev, images: prev.images.filter((_, idx) => idx !== index) }));
   };
@@ -171,18 +201,26 @@ export default function ProductsPage() {
 
       <div className="grid gap-2 rounded-2xl border border-[#ead8d1] p-3">
         <p className="text-sm font-semibold text-[#3c2828]">Картинки товара</p>
-        <input
-          type="file"
-          accept="image/*"
-          className="rounded-xl border border-[#ead8d1] bg-white px-3 py-2 text-sm"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            void uploadImage(file);
-            event.currentTarget.value = "";
-          }}
+        <select
+          className="rounded-xl border border-[#ead8d1] px-3 py-2 text-sm"
+          value={cropMode}
+          onChange={(event) => setCropMode(event.target.value as ProductCropMode)}
+        >
+          {Object.entries(productCropPresets).map(([key, preset]) => (
+            <option key={key} value={key}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
+        <ImageCropUpload
+          aspect={productCropPresets[cropMode].aspect}
+          minWidth={productCropPresets[cropMode].minWidth}
+          minHeight={productCropPresets[cropMode].minHeight}
+          outputWidth={productCropPresets[cropMode].outputWidth}
+          outputHeight={productCropPresets[cropMode].outputHeight}
+          hint={productCropPresets[cropMode].hint}
+          onUploaded={(url) => setForm((prev) => ({ ...prev, images: [...prev.images, url] }))}
         />
-        {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
         {form.images.length ? (
           <div className="grid gap-2 sm:grid-cols-2">
             {form.images.map((url, index) => (
