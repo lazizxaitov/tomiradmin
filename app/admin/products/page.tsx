@@ -126,6 +126,17 @@ export default function ProductsPage() {
     load();
   };
 
+  const remove = async (id: number) => {
+    if (!window.confirm("Удалить товар? Это действие нельзя отменить.")) return;
+    const response = await fetch(`/api/products/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      alert(data?.error ?? "Не удалось удалить товар");
+      return;
+    }
+    load();
+  };
+
   const uploadImage = async (file: File) => {
     const payload = new FormData();
     payload.append("file", file);
@@ -234,8 +245,11 @@ export default function ProductsPage() {
             <p className="text-sm text-[#8d7374]">{item.title_uz}</p>
             {item.description_text_ru ? <p className="mt-2 text-sm text-[#6b5253]">{item.description_text_ru}</p> : null}
             <p className="mt-2 text-sm text-[#8d7374]">{item.price.toLocaleString("ru-RU")} сум · Остаток: {item.stock}</p>
-            <div className="mt-3">
+            <div className="mt-3 flex gap-2">
               <GhostButton type="button" onClick={() => startEdit(item)}>Изменить</GhostButton>
+              <GhostButton type="button" className="border-[#f1cdcf] text-[#8c0f16] hover:border-[#8c0f16]" onClick={() => void remove(item.id)}>
+                Удалить
+              </GhostButton>
             </div>
           </Card>
         ))}

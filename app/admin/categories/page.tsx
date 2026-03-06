@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-import { Card, Modal, PrimaryButton, SectionTitle } from "../_components/ui";
+import { Card, GhostButton, Modal, PrimaryButton, SectionTitle } from "../_components/ui";
 
 type Category = { id: number; name_ru: string; name_uz: string; image_url: string | null };
 
@@ -31,6 +31,17 @@ export default function CategoriesPage() {
     });
     setOpen(false);
     setForm({ nameRu: "", nameUz: "", imageUrl: "" });
+    load();
+  };
+
+  const remove = async (id: number) => {
+    if (!window.confirm("Удалить категорию? Товары сохранятся, но без категории.")) return;
+    const response = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      alert(data?.error ?? "Не удалось удалить категорию");
+      return;
+    }
     load();
   };
 
@@ -79,6 +90,15 @@ export default function CategoriesPage() {
             ) : null}
             <p className="text-base font-bold text-[#3c2828]">{item.name_ru}</p>
             <p className="text-sm text-[#8d7374]">{item.name_uz}</p>
+            <div className="mt-3">
+              <GhostButton
+                type="button"
+                className="border-[#f1cdcf] text-[#8c0f16] hover:border-[#8c0f16]"
+                onClick={() => void remove(item.id)}
+              >
+                Удалить
+              </GhostButton>
+            </div>
           </Card>
         ))}
       </div>

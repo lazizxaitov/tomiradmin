@@ -805,6 +805,24 @@ export function createCategory(input: {
   return category;
 }
 
+export function deleteCategory(categoryId: number) {
+  const before = store.categories.length;
+  store.categories = store.categories.filter((item) => item.id !== categoryId);
+  const removed = store.categories.length < before;
+  if (!removed) return false;
+
+  const now = nowIso();
+  store.products.forEach((product) => {
+    if (product.category_id === categoryId) {
+      product.category_id = null;
+      product.updated_at = now;
+    }
+  });
+
+  void persistStore();
+  return true;
+}
+
 export function createProduct(input: {
   categoryId?: number | null;
   titleRu: string;
@@ -943,6 +961,19 @@ export function updateProduct(
 
   void persistStore();
   return product;
+}
+
+export function deleteProduct(productId: number) {
+  const before = store.products.length;
+  store.products = store.products.filter((item) => item.id !== productId);
+  const removed = store.products.length < before;
+  if (!removed) return false;
+
+  store.product_images = store.product_images.filter((item) => item.product_id !== productId);
+  store.portion_options = store.portion_options.filter((item) => item.product_id !== productId);
+
+  void persistStore();
+  return true;
 }
 
 export function createBanner(input: {

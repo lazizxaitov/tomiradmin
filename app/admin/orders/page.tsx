@@ -53,6 +53,10 @@ export default function OrdersPage() {
       return acc;
     }, {});
 
+    return { totalOrders, totalRevenue, todayOrders, byStatus };
+  }, [items]);
+
+  const branches = useMemo(() => {
     const byBranch = items.reduce<
       Array<{ branchId: number; branchTitle: string; ordersCount: number; revenue: number }>
     >((acc, order) => {
@@ -70,7 +74,7 @@ export default function OrdersPage() {
 
     byBranch.sort((a, b) => b.ordersCount - a.ordersCount || b.revenue - a.revenue);
 
-    return { totalOrders, totalRevenue, todayOrders, byStatus, byBranch };
+    return byBranch;
   }, [items]);
 
   const branchHistory = useMemo(() => {
@@ -120,7 +124,7 @@ export default function OrdersPage() {
             </tr>
           </thead>
           <tbody>
-            {analytics.byBranch.map((branch) => (
+            {branches.map((branch) => (
               <tr key={branch.branchId} className="border-b border-[#f3e8e2]">
                 <td className="py-3 pr-3 font-semibold text-[#3d2b2b]">{branch.branchTitle}</td>
                 <td className="py-3 pr-3 text-[#5a4848]">{branch.ordersCount}</td>
