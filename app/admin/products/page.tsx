@@ -26,7 +26,6 @@ const initialForm = {
   categoryId: "",
   price: "",
   stock: "",
-  imageUrlDraft: "",
   images: [] as string[],
 };
 
@@ -98,7 +97,6 @@ export default function ProductsPage() {
       categoryId: product.category_id ? String(product.category_id) : "",
       price: String(product.price ?? 0),
       stock: String(product.stock ?? 0),
-      imageUrlDraft: "",
       images: product.images ?? [],
     });
     setEditOpen(true);
@@ -150,12 +148,6 @@ export default function ProductsPage() {
     setForm((prev) => ({ ...prev, images: [...prev.images, data.url] }));
   };
 
-  const addImageUrl = () => {
-    const url = form.imageUrlDraft.trim();
-    if (!url) return;
-    setForm((prev) => ({ ...prev, images: [...prev.images, url], imageUrlDraft: "" }));
-  };
-
   const removeImage = (index: number) => {
     setForm((prev) => ({ ...prev, images: prev.images.filter((_, idx) => idx !== index) }));
   };
@@ -179,15 +171,6 @@ export default function ProductsPage() {
 
       <div className="grid gap-2 rounded-2xl border border-[#ead8d1] p-3">
         <p className="text-sm font-semibold text-[#3c2828]">Картинки товара</p>
-        <div className="flex gap-2">
-          <input
-            className="w-full rounded-xl border border-[#ead8d1] px-3 py-2 text-sm"
-            placeholder="URL картинки"
-            value={form.imageUrlDraft}
-            onChange={(event) => setForm((prev) => ({ ...prev, imageUrlDraft: event.target.value }))}
-          />
-          <GhostButton onClick={addImageUrl} type="button">Добавить URL</GhostButton>
-        </div>
         <input
           type="file"
           accept="image/*"
@@ -204,7 +187,7 @@ export default function ProductsPage() {
           <div className="grid gap-2 sm:grid-cols-2">
             {form.images.map((url, index) => (
               <div key={`${url}-${index}`} className="rounded-xl border border-[#ead8d1] p-2">
-                <Image src={url} alt={`product-${index}`} width={280} height={180} className="h-24 w-full rounded-lg object-cover" />
+                <Image src={url} alt={`product-${index}`} width={280} height={180} unoptimized className="h-24 w-full rounded-lg object-cover" />
                 <button type="button" className="mt-2 text-xs font-semibold text-[#8c0f16]" onClick={() => removeImage(index)}>
                   Удалить
                 </button>
@@ -239,7 +222,7 @@ export default function ProductsPage() {
         {filteredItems.map((item) => (
           <Card key={item.id}>
             {item.images?.[0] ? (
-              <Image src={item.images[0]} alt={item.title_ru} width={520} height={280} className="mb-3 h-36 w-full rounded-2xl object-cover" />
+              <Image src={item.images[0]} alt={item.title_ru} width={520} height={280} unoptimized className="mb-3 h-36 w-full rounded-2xl object-cover" />
             ) : null}
             <p className="text-base font-bold text-[#3c2828]">{item.title_ru}</p>
             <p className="text-sm text-[#8d7374]">{item.title_uz}</p>

@@ -122,6 +122,7 @@ export default function CategoriesPage() {
                 alt={item.name_ru}
                 width={480}
                 height={240}
+                unoptimized
                 className="mb-3 h-32 w-full rounded-2xl object-cover"
               />
             ) : null}
@@ -162,12 +163,6 @@ export default function CategoriesPage() {
             onChange={(event) => setForm((prev) => ({ ...prev, nameUz: event.target.value }))}
           />
           <input
-            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
-            placeholder="URL картинки"
-            value={form.imageUrl}
-            onChange={(event) => setForm((prev) => ({ ...prev, imageUrl: event.target.value }))}
-          />
-          <input
             type="file"
             accept="image/*"
             className="rounded-2xl border border-[#ead8d1] bg-white px-4 py-3 text-sm"
@@ -180,7 +175,7 @@ export default function CategoriesPage() {
           />
           {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
           {form.imageUrl ? (
-            <Image src={form.imageUrl} alt="preview" width={480} height={240} className="h-32 w-full rounded-2xl object-cover" />
+            <Image src={form.imageUrl} alt="preview" width={480} height={240} unoptimized className="h-32 w-full rounded-2xl object-cover" />
           ) : null}
         </div>
       </Modal>
@@ -205,12 +200,6 @@ export default function CategoriesPage() {
             onChange={(event) => setForm((prev) => ({ ...prev, nameUz: event.target.value }))}
           />
           <input
-            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
-            placeholder="URL картинки"
-            value={form.imageUrl}
-            onChange={(event) => setForm((prev) => ({ ...prev, imageUrl: event.target.value }))}
-          />
-          <input
             type="file"
             accept="image/*"
             className="rounded-2xl border border-[#ead8d1] bg-white px-4 py-3 text-sm"
@@ -223,7 +212,7 @@ export default function CategoriesPage() {
           />
           {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
           {form.imageUrl ? (
-            <Image src={form.imageUrl} alt="preview-edit" width={480} height={240} className="h-32 w-full rounded-2xl object-cover" />
+            <Image src={form.imageUrl} alt="preview-edit" width={480} height={240} unoptimized className="h-32 w-full rounded-2xl object-cover" />
           ) : null}
         </div>
       </Modal>

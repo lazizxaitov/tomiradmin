@@ -124,12 +124,6 @@ export default function BannersPage() {
         onChange={(event) => setForm((prev) => ({ ...prev, titleUz: event.target.value }))}
       />
       <input
-        className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
-        placeholder="URL картинки"
-        value={form.imageUrl}
-        onChange={(event) => setForm((prev) => ({ ...prev, imageUrl: event.target.value }))}
-      />
-      <input
         type="number"
         className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
         placeholder="Порядок показа (sort order)"
@@ -157,7 +151,7 @@ export default function BannersPage() {
       />
       {uploading ? <p className="text-xs text-[#8d7374]">Загрузка картинки...</p> : null}
       {form.imageUrl ? (
-        <Image src={form.imageUrl} alt="preview" width={600} height={280} className="h-36 w-full rounded-2xl object-cover" />
+        <Image src={form.imageUrl} alt="preview" width={600} height={280} unoptimized className="h-36 w-full rounded-2xl object-cover" />
       ) : null}
     </div>
   );
@@ -184,6 +178,7 @@ export default function BannersPage() {
               alt={item.title_ru}
               width={600}
               height={280}
+              unoptimized
               className="h-36 w-full rounded-2xl object-cover"
             />
             <p className="mt-3 text-base font-bold text-[#3c2828]">{item.title_ru}</p>
