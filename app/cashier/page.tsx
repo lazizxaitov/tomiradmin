@@ -194,6 +194,17 @@ export default function CashierPage() {
                       Доставлен
                     </button>
                   ) : null}
+                  {order.status !== "canceled" && order.status !== "completed" ? (
+                    <button
+                      onClick={() => {
+                        if (!window.confirm("Отменить этот заказ?")) return;
+                        void updateOrder(order.id, { status: "canceled", cancelReason: "Отменено кассой" });
+                      }}
+                      className="rounded-2xl border border-[#f1cdcf] bg-white px-4 py-2 text-sm font-bold text-[#8c0f16]"
+                    >
+                      Отменить заказ
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}

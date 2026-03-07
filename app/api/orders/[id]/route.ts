@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSession } from "@/app/lib/auth";
-import { assignOrderToBranch } from "@/app/lib/data-store";
+import { assignOrderToBranch, updateCashierOrder } from "@/app/lib/data-store";
 
 export async function PATCH(
   request: NextRequest,
@@ -18,9 +18,22 @@ export async function PATCH(
   }
 
   const body = await request.json().catch(() => null);
+
+  const status = body?.status?.toString()?.trim();
+  if (status) {
+    const ok = updateCashierOrder(id, undefined, {
+      status,
+      cancelReason: body?.cancelReason?.toString()?.trim() ?? null,
+    });
+    if (!ok) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const branchId = Number(body?.branchId);
   if (!branchId) {
-    return NextResponse.json({ error: "Invalid branchId" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
   }
 
   const result = assignOrderToBranch(id, branchId);

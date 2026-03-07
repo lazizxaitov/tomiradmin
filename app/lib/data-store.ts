@@ -1557,11 +1557,10 @@ export function createPublicOrder(payload: {
     return { error: "Missing items", status: 400 as const };
   }
 
-  const deliveryLat = Number(payload.deliveryLat);
-  const deliveryLng = Number(payload.deliveryLng);
-  if (!Number.isFinite(deliveryLat) || !Number.isFinite(deliveryLng)) {
-    return { error: "Missing delivery coordinates", status: 400 as const };
-  }
+  const deliveryLatRaw = Number(payload.deliveryLat);
+  const deliveryLngRaw = Number(payload.deliveryLng);
+  const deliveryLat = Number.isFinite(deliveryLatRaw) ? deliveryLatRaw : null;
+  const deliveryLng = Number.isFinite(deliveryLngRaw) ? deliveryLngRaw : null;
 
   const normalizedPhone = normalizePhone(payload.customerPhone ?? null);
   const customerName = payload.customerName?.trim();

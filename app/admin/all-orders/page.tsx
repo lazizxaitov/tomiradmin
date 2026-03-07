@@ -36,7 +36,7 @@ const statusLabels: Record<Order["status"], string> = {
   accepted: "Принят",
   in_delivery: "В доставке",
   completed: "Доставлен",
-  canceled: "Не принят",
+  canceled: "Отменен",
 };
 
 export default function AllOrdersPage() {
@@ -101,6 +101,24 @@ export default function AllOrdersPage() {
     load();
   };
 
+  const cancelOrder = async (orderId: number) => {
+    if (!window.confirm("Отменить этот заказ?")) return;
+    const response = await fetch(`/api/orders/${orderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: "canceled",
+        cancelReason: "Отменено администратором",
+      }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      alert(data?.error ?? "Не удалось отменить заказ");
+      return;
+    }
+    load();
+  };
+
   return (
     <div className="space-y-6">
       <SectionTitle title="Заказы" subtitle="Все заказы из приложения по всем филиалам" />
@@ -151,9 +169,16 @@ export default function AllOrdersPage() {
                 ))}
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 flex gap-2">
                 <GhostButton type="button" onClick={() => openSendModal(order)}>
                   Отправить в филиал
+                </GhostButton>
+                <GhostButton
+                  type="button"
+                  className="border-[#f1cdcf] text-[#8c0f16] hover:border-[#8c0f16]"
+                  onClick={() => void cancelOrder(order.id)}
+                >
+                  Отменить заказ
                 </GhostButton>
               </div>
             </Card>
