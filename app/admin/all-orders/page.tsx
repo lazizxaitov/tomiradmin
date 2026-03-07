@@ -10,6 +10,8 @@ type OrderItem = {
   quantity: number;
 };
 
+type AdminStatus = "paid" | "accepted" | "in_delivery" | "completed" | "canceled" | "sent_to_branch";
+
 type Order = {
   id: number;
   branch_id: number;
@@ -21,6 +23,8 @@ type Order = {
   address_label?: string | null;
   total_amount: number;
   status: "paid" | "accepted" | "in_delivery" | "completed" | "canceled";
+  admin_status?: AdminStatus;
+  sent_to_branch_at?: string | null;
   payment_method?: string | null;
   created_at: string;
   items: OrderItem[];
@@ -37,6 +41,15 @@ const statusLabels: Record<Order["status"], string> = {
   in_delivery: "В доставке",
   completed: "Доставлен",
   canceled: "Отменен",
+};
+
+const adminStatusLabels: Record<AdminStatus, string> = {
+  paid: "Новый",
+  accepted: "Принят",
+  in_delivery: "В доставке",
+  completed: "Доставлен",
+  canceled: "Отменен",
+  sent_to_branch: "Отправлен в филиал",
 };
 
 export default function AllOrdersPage() {
@@ -139,10 +152,21 @@ export default function AllOrdersPage() {
                   <p className="text-lg font-extrabold text-[#3c2828]">
                     {order.total_amount.toLocaleString("ru-RU")} сум
                   </p>
-                  <p className="text-sm text-[#8d7374]">{statusLabels[order.status] ?? order.status}</p>
+                  <p className="text-sm text-[#8d7374]">
+                    {adminStatusLabels[order.admin_status ?? order.status] ??
+                      statusLabels[order.status] ??
+                      order.status}
+                  </p>
+                  {order.admin_status === "sent_to_branch" && order.sent_to_branch_at ? (
+                    <p className="text-xs text-[#8d7374]">
+                      Отправлен: {new Date(order.sent_to_branch_at).toLocaleString("ru-RU")}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-right text-xs text-[#8d7374]">
-                  <p className="font-semibold text-[#3c2828]">{order.branch_title ?? `Филиал #${order.branch_id}`}</p>
+                  <p className="font-semibold text-[#3c2828]">
+                    {order.branch_title ?? `Филиал #${order.branch_id}`}
+                  </p>
                   <p>{new Date(order.created_at).toLocaleString("ru-RU")}</p>
                 </div>
               </div>
@@ -171,7 +195,9 @@ export default function AllOrdersPage() {
 
               <div className="mt-4 flex gap-2">
                 <GhostButton type="button" onClick={() => openSendModal(order)}>
-                  Отправить в филиал
+                  {order.admin_status === "sent_to_branch"
+                    ? "Переотправить в филиал"
+                    : "Отправить в филиал"}
                 </GhostButton>
                 <GhostButton
                   type="button"
@@ -190,11 +216,11 @@ export default function AllOrdersPage() {
         open={sendOpen}
         onClose={() => setSendOpen(false)}
         title="Отправить заказ в филиал"
-        footer={(
+        footer={
           <PrimaryButton onClick={() => void sendToBranch()} disabled={sending || !targetBranchId}>
             {sending ? "Отправка..." : "Отправить"}
           </PrimaryButton>
-        )}
+        }
       >
         <div className="grid gap-3">
           <select

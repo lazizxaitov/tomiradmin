@@ -132,6 +132,7 @@ export type Order = {
   customer_address_id: number | null;
   total_amount: number;
   status: "paid" | "accepted" | "in_delivery" | "completed" | "canceled";
+  sent_to_branch_at?: string | null;
   comment: string | null;
   bonus_used: number;
   bonus_earned: number;
@@ -501,6 +502,7 @@ const ordersSeed: Order[] = [
     customer_address_id: 1,
     total_amount: 120000,
     status: "paid",
+    sent_to_branch_at: null,
     comment: "Позвоните за 10 минут",
     bonus_used: 0,
     bonus_earned: 0,
@@ -521,6 +523,7 @@ const ordersSeed: Order[] = [
     customer_address_id: 2,
     total_amount: 85000,
     status: "accepted",
+    sent_to_branch_at: null,
     comment: null,
     bonus_used: 0,
     bonus_earned: 0,
@@ -1734,9 +1737,11 @@ export function assignOrderToBranch(orderId: number, branchId: number) {
   const branch = getBranchById(branchId);
   if (!branch) return { error: "Branch not found", status: 404 as const };
 
+  const now = nowIso();
   order.branch_id = branchId;
   order.courier_id = null;
-  order.updated_at = nowIso();
+  order.sent_to_branch_at = now;
+  order.updated_at = now;
   void persistStore();
 
   return { item: order };
@@ -1859,6 +1864,7 @@ export function createPublicOrder(payload: {
     customer_address_id: customerAddressId,
     total_amount: totalAmount,
     status: "paid",
+    sent_to_branch_at: null,
     comment: payload.comment?.trim() ?? null,
     bonus_used: bonusUsed,
     bonus_earned: 0,
@@ -1897,6 +1903,8 @@ export function createPublicOrder(payload: {
 export function listAdminOrders() {
   return listCashierOrders().map((order) => ({
     ...order,
+    admin_status:
+      order.status === "paid" && order.sent_to_branch_at ? "sent_to_branch" : order.status,
     branch_title: order.branch?.title ?? null,
   }));
 }
