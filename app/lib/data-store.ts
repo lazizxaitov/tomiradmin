@@ -1511,9 +1511,11 @@ export function listCustomerOrders(customerId: number) {
       : null;
 
     const items = store.order_items.filter((row) => row.order_id === order.id);
+    const status = order.canceled_at ? "canceled" : order.status;
 
     return {
       ...order,
+      status,
       courier,
       address,
       items,
