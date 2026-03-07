@@ -24,7 +24,13 @@ export async function GET(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const items = listCustomerAddresses(customerId);
+  const items = listCustomerAddresses(customerId).map((item) => ({
+    ...item,
+    lat: item.lat ?? null,
+    lng: item.lng ?? null,
+    latitude: item.lat ?? null,
+    longitude: item.lng ?? null,
+  }));
   return NextResponse.json({ items });
 }
 
@@ -52,6 +58,10 @@ export async function POST(
   const addressLine = body?.addressLine?.toString()?.trim();
   const comment = body?.comment?.toString()?.trim() ?? null;
   const isDefault = body?.isDefault === true;
+  const latRaw = body?.lat ?? body?.latitude;
+  const lngRaw = body?.lng ?? body?.longitude;
+  const lat = Number.isFinite(Number(latRaw)) ? Number(latRaw) : null;
+  const lng = Number.isFinite(Number(lngRaw)) ? Number(lngRaw) : null;
 
   if (!addressLine) {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });
@@ -61,6 +71,8 @@ export async function POST(
     label,
     addressLine,
     comment,
+    lat,
+    lng,
     isDefault,
   });
 

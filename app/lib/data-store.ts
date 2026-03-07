@@ -93,6 +93,8 @@ export type CustomerAddress = {
   label: string | null;
   address_line: string;
   comment: string | null;
+  lat: number | null;
+  lng: number | null;
   is_default: 0 | 1;
   created_at: string;
   updated_at: string;
@@ -394,6 +396,8 @@ const customerAddressesSeed: CustomerAddress[] = [
     label: "Дом",
     address_line: "Ташкент, Юнусабад 12, дом 24",
     comment: null,
+    lat: null,
+    lng: null,
     is_default: 1,
     created_at: seededAt,
     updated_at: seededAt,
@@ -404,6 +408,8 @@ const customerAddressesSeed: CustomerAddress[] = [
     label: "Офис",
     address_line: "Ташкент, Чиланзар 3, дом 17",
     comment: null,
+    lat: null,
+    lng: null,
     is_default: 1,
     created_at: seededAt,
     updated_at: seededAt,
@@ -1381,12 +1387,24 @@ export function listCustomerAddresses(customerId: number) {
     .sort((a, b) => {
       if (a.is_default !== b.is_default) return b.is_default - a.is_default;
       return b.created_at.localeCompare(a.created_at);
-    });
+    })
+    .map((row) => ({
+      ...row,
+      lat: Number.isFinite(row.lat) ? Number(row.lat) : null,
+      lng: Number.isFinite(row.lng) ? Number(row.lng) : null,
+    }));
 }
 
 export function addCustomerAddress(
   customerId: number,
-  input: { label?: string | null; addressLine: string; comment?: string | null; isDefault?: boolean }
+  input: {
+    label?: string | null;
+    addressLine: string;
+    comment?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+    isDefault?: boolean;
+  }
 ) {
   const now = nowIso();
   if (input.isDefault) {
@@ -1404,6 +1422,8 @@ export function addCustomerAddress(
     label: input.label ?? null,
     address_line: input.addressLine,
     comment: input.comment ?? null,
+    lat: Number.isFinite(input.lat) ? Number(input.lat) : null,
+    lng: Number.isFinite(input.lng) ? Number(input.lng) : null,
     is_default: input.isDefault ? 1 : 0,
     created_at: now,
     updated_at: now,
@@ -1502,6 +1522,104 @@ export function listCouriers(branchId?: number) {
   return [...store.couriers]
     .filter((courier) => (branchId ? courier.branch_id === branchId : true))
     .sort((a, b) => b.is_active - a.is_active || a.name.localeCompare(b.name));
+}
+
+export function createCourier(input: {
+  branchId: number;
+  name: string;
+  phone?: string | null;
+  carNumber?: string | null;
+  comment?: string | null;
+  isActive?: boolean;
+}) {
+  const branch = getBranchById(input.branchId);
+  if (!branch) return { error: "Branch not found", status: 404 as const };
+
+  const name = input.name.trim();
+  if (!name) return { error: "Missing name", status: 400 as const };
+
+  const now = nowIso();
+  const courier: Courier = {
+    id: nextId(store.couriers),
+    branch_id: input.branchId,
+    name,
+    phone: normalizePhone(input.phone ?? null),
+    car_number: input.carNumber?.trim() || null,
+    comment: input.comment?.trim() || null,
+    is_active: input.isActive === false ? 0 : 1,
+    created_at: now,
+    updated_at: now,
+  };
+
+  store.couriers.push(courier);
+  void persistStore();
+  return { item: courier };
+}
+
+export function updateCourier(
+  courierId: number,
+  input: {
+    branchId?: number;
+    name?: string;
+    phone?: string | null;
+    carNumber?: string | null;
+    comment?: string | null;
+    isActive?: boolean;
+  },
+) {
+  const courier = store.couriers.find((item) => item.id === courierId);
+  if (!courier) return { error: "Courier not found", status: 404 as const };
+
+  if (input.branchId !== undefined) {
+    const branch = getBranchById(input.branchId);
+    if (!branch) return { error: "Branch not found", status: 404 as const };
+    courier.branch_id = input.branchId;
+  }
+
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) return { error: "Missing name", status: 400 as const };
+    courier.name = name;
+  }
+
+  if (input.phone !== undefined) {
+    courier.phone = normalizePhone(input.phone);
+  }
+
+  if (input.carNumber !== undefined) {
+    courier.car_number = input.carNumber?.trim() || null;
+  }
+
+  if (input.comment !== undefined) {
+    courier.comment = input.comment?.trim() || null;
+  }
+
+  if (input.isActive !== undefined) {
+    courier.is_active = input.isActive ? 1 : 0;
+  }
+
+  courier.updated_at = nowIso();
+  void persistStore();
+  return { item: courier };
+}
+
+export function deleteCourier(courierId: number) {
+  const before = store.couriers.length;
+  store.couriers = store.couriers.filter((item) => item.id !== courierId);
+  if (store.couriers.length === before) {
+    return { error: "Courier not found", status: 404 as const };
+  }
+
+  const now = nowIso();
+  store.orders.forEach((order) => {
+    if (order.courier_id === courierId) {
+      order.courier_id = null;
+      order.updated_at = now;
+    }
+  });
+
+  void persistStore();
+  return { ok: true as const };
 }
 
 export function listCashierOrders(branchId?: number) {
@@ -1719,6 +1837,8 @@ export function createPublicOrder(payload: {
       label: payload.addressLabel ?? null,
       addressLine: payload.addressLine.trim(),
       comment: payload.addressComment ?? null,
+      lat: deliveryLat,
+      lng: deliveryLng,
       isDefault: false,
     });
   }
