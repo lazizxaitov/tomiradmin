@@ -30,8 +30,8 @@ export async function POST(request: Request) {
     addressComment: body?.addressComment?.toString()?.trim() ?? null,
     comment: body?.comment?.toString()?.trim() ?? null,
     paymentMethod: body?.paymentMethod?.toString()?.trim() ?? null,
-    deliveryLat: body?.deliveryLat ?? body?.addressLat ?? null,
-    deliveryLng: body?.deliveryLng ?? body?.addressLng ?? null,
+    deliveryLat: body?.deliveryLat ?? body?.addressLat ?? body?.lat ?? body?.latitude ?? null,
+    deliveryLng: body?.deliveryLng ?? body?.addressLng ?? body?.lng ?? body?.longitude ?? null,
     bonusUsed: Number(body?.bonusUsed ?? 0),
     items: Array.isArray(body?.items) ? body.items : [],
   });

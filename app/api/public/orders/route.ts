@@ -5,27 +5,51 @@ import { rateLimit, requirePublicApiKey } from "@/app/lib/public-auth";
 
 export const runtime = "nodejs";
 
+function getYandexGeocoderKey() {
+  return (
+    process.env.YANDEX_GEOCODER_API_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY?.trim() ||
+    ""
+  );
+}
+
 async function geocodeAddress(query: string) {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
-    {
-      headers: {
-        "User-Agent": "tomiradmin/1.0 (public order geocode)",
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    },
-  ).catch(() => null);
+  const key = getYandexGeocoderKey();
+  if (!key) return null;
 
+  const url =
+    "https://geocode-maps.yandex.ru/1.x/?" +
+    new URLSearchParams({
+      apikey: key,
+      geocode: query,
+      format: "json",
+      results: "1",
+      lang: "ru_RU",
+    }).toString();
+
+  const response = await fetch(url, { cache: "no-store" }).catch(() => null);
   if (!response?.ok) return null;
-  const data = (await response.json().catch(() => null)) as
-    | Array<{ lat: string; lon: string }>
-    | null;
-  const first = data?.[0];
-  if (!first) return null;
 
-  const lat = Number(first.lat);
-  const lng = Number(first.lon);
+  const data = (await response.json().catch(() => null)) as
+    | {
+        response?: {
+          GeoObjectCollection?: {
+            featureMember?: Array<{
+              GeoObject?: {
+                Point?: { pos?: string };
+              };
+            }>;
+          };
+        };
+      }
+    | null;
+  const pos =
+    data?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject?.Point?.pos?.trim() ?? "";
+  if (!pos) return null;
+
+  const [lngRaw, latRaw] = pos.split(/\s+/);
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return { lat, lng };
 }
@@ -44,8 +68,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const addressLine = body?.addressLine?.toString()?.trim() ?? null;
 
-  let deliveryLat = body?.deliveryLat ?? body?.addressLat ?? null;
-  let deliveryLng = body?.deliveryLng ?? body?.addressLng ?? null;
+  let deliveryLat = body?.deliveryLat ?? body?.addressLat ?? body?.lat ?? body?.latitude ?? null;
+  let deliveryLng = body?.deliveryLng ?? body?.addressLng ?? body?.lng ?? body?.longitude ?? null;
 
   const hasCoords =
     Number.isFinite(Number(deliveryLat)) && Number.isFinite(Number(deliveryLng));

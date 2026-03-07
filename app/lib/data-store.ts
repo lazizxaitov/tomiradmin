@@ -1779,8 +1779,8 @@ export function createPublicOrder(payload: {
 
   const deliveryLatRaw = Number(payload.deliveryLat);
   const deliveryLngRaw = Number(payload.deliveryLng);
-  const deliveryLat = Number.isFinite(deliveryLatRaw) ? deliveryLatRaw : null;
-  const deliveryLng = Number.isFinite(deliveryLngRaw) ? deliveryLngRaw : null;
+  let deliveryLat = Number.isFinite(deliveryLatRaw) ? deliveryLatRaw : null;
+  let deliveryLng = Number.isFinite(deliveryLngRaw) ? deliveryLngRaw : null;
 
   const normalizedPhone = normalizePhone(payload.customerPhone ?? null);
   const customerName = payload.customerName?.trim();
@@ -1848,6 +1848,18 @@ export function createPublicOrder(payload: {
       lng: deliveryLng,
       isDefault: false,
     });
+  }
+
+  if ((deliveryLat === null || deliveryLng === null) && customerAddressId) {
+    const selectedAddress = store.customer_addresses.find((row) => row.id === customerAddressId);
+    if (selectedAddress) {
+      if (deliveryLat === null && Number.isFinite(selectedAddress.lat)) {
+        deliveryLat = Number(selectedAddress.lat);
+      }
+      if (deliveryLng === null && Number.isFinite(selectedAddress.lng)) {
+        deliveryLng = Number(selectedAddress.lng);
+      }
+    }
   }
 
   const totalAmount = items.reduce((sum, item) => {
