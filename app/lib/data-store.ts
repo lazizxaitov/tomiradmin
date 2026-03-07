@@ -1484,6 +1484,7 @@ export function updateCashierOrder(
   }
 
   if (payload.status) {
+    const wasCompleted = Boolean(order.completed_at);
     order.status =
       payload.status === "accepted" ||
       payload.status === "in_delivery" ||
@@ -1500,6 +1501,28 @@ export function updateCashierOrder(
     }
     if (order.status === "completed" && !order.completed_at) {
       order.completed_at = now;
+
+      const percent = Number(store.settings.bonus_percent ?? 0);
+      const fixed = Number(store.settings.bonus_redeem_amount ?? 0);
+      const byPercent =
+        Number.isFinite(percent) && percent > 0
+          ? Math.round((order.total_amount * percent) / 100)
+          : 0;
+      const byFixed =
+        Number.isFinite(fixed) && fixed > 0
+          ? Math.round(fixed)
+          : 0;
+      const earned = byPercent > 0 ? byPercent : byFixed;
+
+      order.bonus_earned = earned;
+
+      if (!wasCompleted && earned > 0 && order.customer_id) {
+        const customer = store.customers.find((row) => row.id === order.customer_id);
+        if (customer) {
+          customer.bonus_balance += earned;
+          customer.updated_at = now;
+        }
+      }
     }
     if (order.status === "canceled") {
       if (!order.canceled_at) {
