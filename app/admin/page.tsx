@@ -34,6 +34,18 @@ export default function AdminDashboardPage() {
       </div>
       <Card className="flex items-center justify-between gap-3">
         <div>
+          <p className="text-base font-bold text-[#3c2828]">Заказы</p>
+          <p className="mt-1 text-sm text-[#8d7374]">Живая лента заказов по всем филиалам</p>
+        </div>
+        <Link
+          href="/admin/all-orders"
+          className="rounded-xl border border-[#7e0d14] bg-[#8c0f16] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#740b11]"
+        >
+          Открыть
+        </Link>
+      </Card>
+      <Card className="flex items-center justify-between gap-3">
+        <div>
           <p className="text-base font-bold text-[#3c2828]">Аналитика заказов</p>
           <p className="mt-1 text-sm text-[#8d7374]">История и метрики заказов по филиалам</p>
         </div>

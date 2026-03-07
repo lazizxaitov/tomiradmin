@@ -1666,17 +1666,9 @@ export function createPublicOrder(payload: {
 }
 
 export function listAdminOrders() {
-  return store.orders.map((order) => {
-    const customer = order.customer_id
-      ? store.customers.find((row) => row.id === order.customer_id)
-      : null;
-    const branch = store.branches.find((row) => row.id === order.branch_id);
-    return {
-      ...order,
-      customer_name: customer?.name ?? null,
-      customer_phone: customer?.phone ?? null,
-      branch_title: branch?.title ?? null,
-    };
-  });
+  return listCashierOrders().map((order) => ({
+    ...order,
+    branch_title: order.branch?.title ?? null,
+  }));
 }
 
