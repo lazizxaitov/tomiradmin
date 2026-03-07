@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Card, SectionTitle } from "../_components/ui";
+import { Card, GhostButton, Modal, PrimaryButton, SectionTitle } from "../_components/ui";
 
 type OrderItem = {
   title_ru: string;
@@ -26,6 +26,11 @@ type Order = {
   items: OrderItem[];
 };
 
+type Branch = {
+  id: number;
+  title: string;
+};
+
 const statusLabels: Record<Order["status"], string> = {
   paid: "Новый",
   accepted: "Принят",
@@ -36,13 +41,23 @@ const statusLabels: Record<Order["status"], string> = {
 
 export default function AllOrdersPage() {
   const [items, setItems] = useState<Order[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [targetBranchId, setTargetBranchId] = useState("");
 
   const load = () => {
     setLoading(true);
-    fetch("/api/orders")
-      .then((res) => res.json())
-      .then((data) => setItems(data.items ?? []))
+    Promise.all([fetch("/api/orders"), fetch("/api/branches")])
+      .then(async ([ordersRes, branchesRes]) => {
+        const ordersData = await ordersRes.json();
+        const branchesData = await branchesRes.json();
+        setItems(ordersData.items ?? []);
+        setBranches(branchesData.items ?? []);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -57,6 +72,34 @@ export default function AllOrdersPage() {
     () => items.filter((order) => order.status !== "completed" && order.status !== "canceled"),
     [items],
   );
+
+  const openSendModal = (order: Order) => {
+    setSelectedOrderId(order.id);
+    setTargetBranchId(String(order.branch_id));
+    setSendOpen(true);
+  };
+
+  const sendToBranch = async () => {
+    if (!selectedOrderId || !targetBranchId) return;
+    setSending(true);
+    const response = await fetch(`/api/orders/${selectedOrderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branchId: Number(targetBranchId) }),
+    });
+    setSending(false);
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      alert(data?.error ?? "Не удалось отправить заказ в филиал");
+      return;
+    }
+
+    setSendOpen(false);
+    setSelectedOrderId(null);
+    setTargetBranchId("");
+    load();
+  };
 
   return (
     <div className="space-y-6">
@@ -107,10 +150,42 @@ export default function AllOrdersPage() {
                   </div>
                 ))}
               </div>
+
+              <div className="mt-4">
+                <GhostButton type="button" onClick={() => openSendModal(order)}>
+                  Отправить в филиал
+                </GhostButton>
+              </div>
             </Card>
           ))}
         </div>
       )}
+
+      <Modal
+        open={sendOpen}
+        onClose={() => setSendOpen(false)}
+        title="Отправить заказ в филиал"
+        footer={(
+          <PrimaryButton onClick={() => void sendToBranch()} disabled={sending || !targetBranchId}>
+            {sending ? "Отправка..." : "Отправить"}
+          </PrimaryButton>
+        )}
+      >
+        <div className="grid gap-3">
+          <select
+            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
+            value={targetBranchId}
+            onChange={(event) => setTargetBranchId(event.target.value)}
+          >
+            <option value="">Выбери филиал</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Modal>
     </div>
   );
 }

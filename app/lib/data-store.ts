@@ -1514,6 +1514,21 @@ export function updateCashierOrder(
   return true;
 }
 
+export function assignOrderToBranch(orderId: number, branchId: number) {
+  const order = store.orders.find((row) => row.id === orderId);
+  if (!order) return { error: "Order not found", status: 404 as const };
+
+  const branch = getBranchById(branchId);
+  if (!branch) return { error: "Branch not found", status: 404 as const };
+
+  order.branch_id = branchId;
+  order.courier_id = null;
+  order.updated_at = nowIso();
+  void persistStore();
+
+  return { item: order };
+}
+
 export function createPublicOrder(payload: {
   customerId?: number | null;
   customerName?: string | null;
