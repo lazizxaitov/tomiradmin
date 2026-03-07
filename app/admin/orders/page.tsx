@@ -34,12 +34,17 @@ export default function OrdersPage() {
       .then((data) => setItems(data.items ?? []));
   }, []);
 
+  const analyticsItems = useMemo(
+    () => items.filter((order) => order.status !== "canceled"),
+    [items],
+  );
+
   const analytics = useMemo(() => {
-    const totalOrders = items.length;
-    const totalRevenue = items.reduce((sum, order) => sum + order.total_amount, 0);
+    const totalOrders = analyticsItems.length;
+    const totalRevenue = analyticsItems.reduce((sum, order) => sum + order.total_amount, 0);
 
     const today = new Date();
-    const todayOrders = items.filter((order) => {
+    const todayOrders = analyticsItems.filter((order) => {
       const date = new Date(order.created_at);
       return (
         date.getFullYear() === today.getFullYear() &&
@@ -48,16 +53,16 @@ export default function OrdersPage() {
       );
     }).length;
 
-    const byStatus = items.reduce<Record<string, number>>((acc, order) => {
+    const byStatus = analyticsItems.reduce<Record<string, number>>((acc, order) => {
       acc[order.status] = (acc[order.status] ?? 0) + 1;
       return acc;
     }, {});
 
     return { totalOrders, totalRevenue, todayOrders, byStatus };
-  }, [items]);
+  }, [analyticsItems]);
 
   const branches = useMemo(() => {
-    const byBranch = items.reduce<
+    const byBranch = analyticsItems.reduce<
       Array<{ branchId: number; branchTitle: string; ordersCount: number; revenue: number }>
     >((acc, order) => {
       const branchId = order.branch_id;
@@ -75,14 +80,14 @@ export default function OrdersPage() {
     byBranch.sort((a, b) => b.ordersCount - a.ordersCount || b.revenue - a.revenue);
 
     return byBranch;
-  }, [items]);
+  }, [analyticsItems]);
 
   const branchHistory = useMemo(() => {
     if (!selectedBranchId) return [];
-    return items
+    return analyticsItems
       .filter((order) => order.branch_id === selectedBranchId)
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }, [items, selectedBranchId]);
+  }, [analyticsItems, selectedBranchId]);
 
   return (
     <div className="space-y-6">
@@ -104,7 +109,9 @@ export default function OrdersPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {(Object.keys(statusLabel) as Order["status"][]).map((key) => (
+        {(Object.keys(statusLabel) as Order["status"][])
+          .filter((key) => key !== "canceled")
+          .map((key) => (
           <Card key={key}>
             <p className="text-xs uppercase tracking-[0.2em] text-[#8d7374]">{statusLabel[key]}</p>
             <p className="mt-2 text-2xl font-extrabold text-[#3c2828]">{analytics.byStatus[key] ?? 0}</p>
