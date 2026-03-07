@@ -102,6 +102,24 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
   const parseLng = Number(lng);
   const hasCoords = Number.isFinite(parseLat) && Number.isFinite(parseLng);
 
+  const serverGeocodeByQuery = async (query: string) => {
+    const response = await fetch(`/api/admin/geocode?query=${encodeURIComponent(query)}`);
+    if (!response.ok) return null;
+    const data = (await response.json().catch(() => null)) as {
+      item?: { lat: number; lng: number; address?: string };
+    } | null;
+    return data?.item ?? null;
+  };
+
+  const serverReverseGeocode = async (nextLat: number, nextLng: number) => {
+    const response = await fetch(`/api/admin/geocode?lat=${nextLat}&lng=${nextLng}`);
+    if (!response.ok) return null;
+    const data = (await response.json().catch(() => null)) as {
+      item?: { lat: number; lng: number; address?: string };
+    } | null;
+    return data?.item ?? null;
+  };
+
   const updatePoint = (coords: number[], withReverseGeocode = false) => {
     const [nextLat, nextLng] = coords;
     if (!Number.isFinite(nextLat) || !Number.isFinite(nextLng)) return;
@@ -111,17 +129,31 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
       lng: Number(nextLng).toFixed(6),
     });
 
-    if (withReverseGeocode && window.ymaps) {
-      window.ymaps
-        .geocode([nextLat, nextLng])
-        .then((res) => {
-          const first = res.geoObjects.get(0);
-          const found = first?.getAddressLine?.() || first?.properties?.get?.("text") || "";
-          if (found) onChange({ address: found });
-        })
-        .catch(() => {
-          setMapError("Не удалось определить адрес. Проверьте API ключ Яндекс.");
-        });
+    if (withReverseGeocode) {
+      void (async () => {
+        setMapError(null);
+        const fromServer = await serverReverseGeocode(nextLat, nextLng);
+        if (fromServer?.address) {
+          onChange({ address: fromServer.address });
+          return;
+        }
+
+        if (window.ymaps) {
+          try {
+            const res = await window.ymaps.geocode([nextLat, nextLng]);
+            const first = res.geoObjects.get(0);
+            const found = first?.getAddressLine?.() || first?.properties?.get?.("text") || "";
+            if (found) {
+              onChange({ address: found });
+              return;
+            }
+          } catch {
+            // ignore and fall through to message
+          }
+        }
+
+        setMapError("Не удалось определить адрес. Проверьте ключ геокодера Яндекс.");
+      })();
     }
   };
 
@@ -184,15 +216,28 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
 
   const searchByAddress = async () => {
     const query = address.trim();
-    if (!query || !window.ymaps || !mapRef.current || !markerRef.current) return;
+    if (!query || !mapRef.current || !markerRef.current) return;
 
     setBusy(true);
     setMapError(null);
     try {
-      try {
+      const fromServer = await serverGeocodeByQuery(query);
+      if (fromServer) {
+        const coords: [number, number] = [Number(fromServer.lat), Number(fromServer.lng)];
+        if (!Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) {
+          throw new Error("BAD_COORDS");
+        }
+        markerRef.current.geometry.setCoordinates(coords);
+        mapRef.current.setCenter(coords, 16, { duration: 200 });
+        onChange({ address: fromServer.address || query });
+        updatePoint(coords, false);
+        return;
+      }
+
+      if (window.ymaps) {
         const result = await window.ymaps.geocode(query, { results: 1 });
         const first = result.geoObjects.get(0);
-        if (!first) throw new Error("NO_RESULTS");
+        if (!first) throw new Error("NO_RESULTS_JS");
 
         const coords = first.geometry.getCoordinates();
         const foundAddress = first.getAddressLine?.() || first.properties?.get?.("text") || query;
@@ -202,26 +247,11 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
         onChange({ address: foundAddress });
         updatePoint(coords, false);
         return;
-      } catch {
-        // Server-side fallback geocoder (avoids browser CORS/rate limits).
-        const response = await fetch(`/api/admin/geocode?query=${encodeURIComponent(query)}`);
-        if (!response.ok) throw new Error("FALLBACK_FAILED");
-        const data = (await response.json()) as {
-          item?: { lat: number; lng: number; address?: string };
-        };
-        if (!data.item) throw new Error("NO_RESULTS");
-
-        const coords: [number, number] = [Number(data.item.lat), Number(data.item.lng)];
-        if (!Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) {
-          throw new Error("BAD_COORDS");
-        }
-        markerRef.current.geometry.setCoordinates(coords);
-        mapRef.current.setCenter(coords, 16, { duration: 200 });
-        onChange({ address: data.item.address || query });
-        updatePoint(coords, false);
       }
+
+      throw new Error("NO_RESULTS");
     } catch {
-      setMapError("Поиск по адресу не сработал. Проверь API-ключ и разреши localhost/127.0.0.1 в кабинете Яндекс.");
+      setMapError("Поиск по адресу не сработал. Проверь ключ геокодера и перезапусти сервер.");
     } finally {
       setBusy(false);
     }
