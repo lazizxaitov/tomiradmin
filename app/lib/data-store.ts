@@ -1322,6 +1322,7 @@ export function loginCustomer(input: { phone: string; password: string }) {
     id: customer.id,
     name: customer.name,
     phone: customer.phone,
+    bonus_balance: customer.bonus_balance,
   };
 }
 
@@ -1332,6 +1333,7 @@ export function getCustomerProfile(customerId: number) {
     id: customer.id,
     name: customer.name,
     phone: customer.phone,
+    bonus_balance: customer.bonus_balance,
   };
 }
 
@@ -1359,7 +1361,17 @@ export function updateCustomerProfile(customerId: number, input: { name?: string
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
+      bonus_balance: customer.bonus_balance,
     },
+  };
+}
+
+export function getCustomerBonus(customerId: number) {
+  const customer = store.customers.find((row) => row.id === customerId);
+  if (!customer) return null;
+  return {
+    customer_id: customer.id,
+    balance: customer.bonus_balance,
   };
 }
 
@@ -1400,6 +1412,66 @@ export function addCustomerAddress(
   store.customer_addresses.push(address);
   void persistStore();
   return address.id;
+}
+
+export function deleteCustomerAddress(customerId: number, addressId: number) {
+  const address = store.customer_addresses.find(
+    (row) => row.id === addressId && row.customer_id === customerId,
+  );
+  if (!address) return { error: "Address not found", status: 404 as const };
+
+  const wasDefault = address.is_default === 1;
+  store.customer_addresses = store.customer_addresses.filter((row) => row.id !== addressId);
+
+  if (wasDefault) {
+    const nextDefault = store.customer_addresses
+      .filter((row) => row.customer_id === customerId)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    if (nextDefault) {
+      nextDefault.is_default = 1;
+      nextDefault.updated_at = nowIso();
+    }
+  }
+
+  const now = nowIso();
+  store.orders.forEach((order) => {
+    if (order.customer_address_id === addressId) {
+      order.customer_address_id = null;
+      order.updated_at = now;
+    }
+  });
+
+  void persistStore();
+  return { ok: true };
+}
+
+export function changeCustomerPassword(
+  customerId: number,
+  input: { currentPassword: string; newPassword: string },
+) {
+  const customer = store.customers.find((row) => row.id === customerId);
+  if (!customer) return { error: "Customer not found", status: 404 as const };
+
+  const currentPassword = input.currentPassword.trim();
+  const newPassword = input.newPassword.trim();
+
+  if (!currentPassword || !newPassword) {
+    return { error: "Missing password", status: 400 as const };
+  }
+
+  if (!customer.password) {
+    return { error: "Password is not set for this account", status: 400 as const };
+  }
+
+  if (customer.password !== currentPassword) {
+    return { error: "Invalid current password", status: 401 as const };
+  }
+
+  customer.password = newPassword;
+  customer.updated_at = nowIso();
+  void persistStore();
+
+  return { ok: true };
 }
 
 export function listCustomerOrders(customerId: number) {

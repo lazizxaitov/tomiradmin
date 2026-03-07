@@ -8,7 +8,7 @@ Headers for all public API calls:
 - `x-api-key: <MOBILE_API_KEY>` if `MOBILE_API_KEY` is set on server
 
 Rate limit:
-- ~120 requests per minute per IP for public endpoints.
+- About 120 requests/min per IP for public endpoints.
 
 ---
 
@@ -26,7 +26,7 @@ Body:
 }
 ```
 
-Response 200:
+Response:
 ```json
 { "id": 1 }
 ```
@@ -47,13 +47,14 @@ Body:
 }
 ```
 
-Response 200:
+Response:
 ```json
 {
   "item": {
     "id": 1,
     "name": "Test Client",
-    "phone": "+998901112233"
+    "phone": "+998901112233",
+    "bonus_balance": 12000
   }
 }
 ```
@@ -75,7 +76,8 @@ Response:
   "item": {
     "id": 1,
     "name": "Test Client",
-    "phone": "+998901112233"
+    "phone": "+998901112233",
+    "bonus_balance": 12000
   }
 }
 ```
@@ -90,6 +92,27 @@ Body (at least one field):
   "phone": "+998901112244"
 }
 ```
+
+### Change password
+`PATCH /api/public/customers/{customerId}/password`
+
+Body:
+```json
+{
+  "currentPassword": "1234",
+  "newPassword": "5678"
+}
+```
+
+Response:
+```json
+{ "ok": true }
+```
+
+Errors:
+- `400 Missing password`
+- `400 Password is not set for this account`
+- `401 Invalid current password`
 
 ---
 
@@ -114,6 +137,14 @@ Body:
 Response:
 ```json
 { "id": 10 }
+```
+
+### Delete address
+`DELETE /api/public/customers/{customerId}/addresses/{addressId}`
+
+Response:
+```json
+{ "ok": true }
 ```
 
 ---
@@ -160,34 +191,11 @@ Response:
 
 Notes:
 - `items` and `paymentMethod` are required.
-- Coordinates are optional now; if missing, order is still created and assigned by fallback logic.
+- Coordinates are optional; order is still created without them.
+- Use `bonusUsed` to spend client bonuses in this order.
 
 ### Client order history
 `GET /api/public/customers/{customerId}/orders`
-
-Response:
-```json
-{
-  "items": [
-    {
-      "id": 123,
-      "status": "paid",
-      "total_amount": 90000,
-      "created_at": "2026-03-07T12:00:00.000Z",
-      "items": [
-        {
-          "title_ru": "Товар",
-          "price": 45000,
-          "quantity": 2,
-          "total": 90000
-        }
-      ],
-      "address": {},
-      "courier": null
-    }
-  ]
-}
-```
 
 Order statuses:
 - `paid`
@@ -198,7 +206,24 @@ Order statuses:
 
 ---
 
-## 5) Catalog / Home data
+## 5) Bonuses
+
+### Get bonus balance
+`GET /api/public/customers/{customerId}/bonus`
+
+Response:
+```json
+{
+  "item": {
+    "customer_id": 1,
+    "balance": 12000
+  }
+}
+```
+
+---
+
+## 6) Catalog / Home data
 
 ### Settings
 `GET /api/public/settings`
@@ -217,9 +242,9 @@ Order statuses:
 
 ---
 
-## 6) Bootstrap (single call for app startup)
+## 7) Bootstrap (single call for app startup)
 
-### Mobile bootstrap
+### Bootstrap
 `GET /api/mobile/bootstrap`
 
 Returns:
@@ -229,22 +254,19 @@ Returns:
 - active products
 - active branches (pickup points)
 
-Use this endpoint to replace hardcoded pickup points in mobile app.
-
 ---
 
-## 7) Mapping to current mobile gaps
+## 8) Mobile integration status
 
 Already available in backend:
 - Auth API (register/login)
 - Create order API
-- Client history API
-- Client addresses API
-- Profile get/update API
+- Client order history API
+- Client addresses API (list/add/delete)
+- Profile API (get/update)
+- Change password API
 - Category products API
-- Branches data via `/api/mobile/bootstrap`
+- Branches via `/api/mobile/bootstrap`
 
-Not available yet in backend (needs new endpoint if required):
-- Password change API for client
-- Dedicated search endpoint (can be done client-side using `/api/public/products`, or we can add `/api/public/search`)
-
+Not available yet in backend:
+- Dedicated search endpoint (can be added as `/api/public/search`)
