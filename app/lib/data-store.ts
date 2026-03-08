@@ -1545,6 +1545,9 @@ export function listCustomerOrders(customerId: number) {
       ...order,
       status,
       courier,
+      courier_name: courier?.name ?? null,
+      courier_phone: courier?.phone ?? null,
+      courier_car_number: courier?.car_number ?? null,
       address,
       items,
     };
