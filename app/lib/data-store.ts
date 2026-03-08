@@ -210,6 +210,15 @@ function parseCoordinate(value: unknown): number | null {
   return null;
 }
 
+function normalizeAddressLine(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.,]/g, "")
+    .replace(/ё/g, "е");
+}
+
 function normalizePhone(phone: string | null | undefined) {
   const trimmed = phone?.toString().trim();
   if (!trimmed) return null;
@@ -1810,6 +1819,9 @@ export function createPublicOrder(payload: {
   let customerId = payload.customerId ? Number(payload.customerId) : null;
   let customerAddressId = payload.addressId ? Number(payload.addressId) : null;
   let bonusUsed = 0;
+  const normalizedAddressLine = payload.addressLine?.trim()
+    ? normalizeAddressLine(payload.addressLine)
+    : null;
 
   if (customerId) {
     const existing = store.customers.find((customer) => customer.id === customerId);
@@ -1826,6 +1838,17 @@ export function createPublicOrder(payload: {
     }
 
     existing.updated_at = nowIso();
+
+    if (!customerAddressId && normalizedAddressLine) {
+      const matchedAddress = store.customer_addresses.find(
+        (row) =>
+          row.customer_id === customerId &&
+          normalizeAddressLine(row.address_line) === normalizedAddressLine,
+      );
+      if (matchedAddress) {
+        customerAddressId = matchedAddress.id;
+      }
+    }
   } else if (customerName) {
     const existingByPhone = normalizedPhone
       ? store.customers.find((customer) => customer.phone === normalizedPhone)
@@ -1839,6 +1862,17 @@ export function createPublicOrder(payload: {
       if (bonusUsedRequested > 0) {
         bonusUsed = Math.max(0, Math.min(existingByPhone.bonus_balance, bonusUsedRequested));
         existingByPhone.bonus_balance -= bonusUsed;
+      }
+
+      if (!customerAddressId && normalizedAddressLine) {
+        const matchedAddress = store.customer_addresses.find(
+          (row) =>
+            row.customer_id === existingByPhone.id &&
+            normalizeAddressLine(row.address_line) === normalizedAddressLine,
+        );
+        if (matchedAddress) {
+          customerAddressId = matchedAddress.id;
+        }
       }
     } else {
       const now = nowIso();
