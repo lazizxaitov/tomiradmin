@@ -104,7 +104,10 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
 
   const serverGeocodeByQuery = async (query: string) => {
     const response = await fetch(`/api/admin/geocode?query=${encodeURIComponent(query)}`);
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || `HTTP_${response.status}`);
+    }
     const data = (await response.json().catch(() => null)) as {
       item?: { lat: number; lng: number; address?: string };
     } | null;
@@ -113,7 +116,10 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
 
   const serverReverseGeocode = async (nextLat: number, nextLng: number) => {
     const response = await fetch(`/api/admin/geocode?lat=${nextLat}&lng=${nextLng}`);
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || `HTTP_${response.status}`);
+    }
     const data = (await response.json().catch(() => null)) as {
       item?: { lat: number; lng: number; address?: string };
     } | null;
@@ -132,10 +138,14 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
     if (withReverseGeocode) {
       void (async () => {
         setMapError(null);
-        const fromServer = await serverReverseGeocode(nextLat, nextLng);
-        if (fromServer?.address) {
-          onChange({ address: fromServer.address });
-          return;
+        try {
+          const fromServer = await serverReverseGeocode(nextLat, nextLng);
+          if (fromServer?.address) {
+            onChange({ address: fromServer.address });
+            return;
+          }
+        } catch {
+          // fallback to browser geocoder
         }
 
         if (window.ymaps) {
@@ -221,17 +231,21 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
     setBusy(true);
     setMapError(null);
     try {
-      const fromServer = await serverGeocodeByQuery(query);
-      if (fromServer) {
-        const coords: [number, number] = [Number(fromServer.lat), Number(fromServer.lng)];
-        if (!Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) {
-          throw new Error("BAD_COORDS");
+      try {
+        const fromServer = await serverGeocodeByQuery(query);
+        if (fromServer) {
+          const coords: [number, number] = [Number(fromServer.lat), Number(fromServer.lng)];
+          if (!Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) {
+            throw new Error("BAD_COORDS");
+          }
+          markerRef.current.geometry.setCoordinates(coords);
+          mapRef.current.setCenter(coords, 16, { duration: 200 });
+          onChange({ address: fromServer.address || query });
+          updatePoint(coords, false);
+          return;
         }
-        markerRef.current.geometry.setCoordinates(coords);
-        mapRef.current.setCenter(coords, 16, { duration: 200 });
-        onChange({ address: fromServer.address || query });
-        updatePoint(coords, false);
-        return;
+      } catch {
+        // fallback to browser geocoder
       }
 
       if (window.ymaps) {
@@ -251,7 +265,7 @@ export function YandexMapPicker({ address, lat, lng, onChange }: Props) {
 
       throw new Error("NO_RESULTS");
     } catch {
-      setMapError("Поиск по адресу не сработал. Проверь ключ геокодера и перезапусти сервер.");
+      setMapError("Поиск по адресу не сработал. Проверь ключ геокодера и доступ API.");
     } finally {
       setBusy(false);
     }
