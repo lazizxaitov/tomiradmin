@@ -5,6 +5,15 @@ import { rateLimit, requirePublicApiKey } from "@/app/lib/public-auth";
 
 export const runtime = "nodejs";
 
+function parseCoordinate(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim().replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -60,8 +69,8 @@ export async function POST(
   const isDefault = body?.isDefault === true;
   const latRaw = body?.lat ?? body?.latitude;
   const lngRaw = body?.lng ?? body?.longitude;
-  const lat = Number.isFinite(Number(latRaw)) ? Number(latRaw) : null;
-  const lng = Number.isFinite(Number(lngRaw)) ? Number(lngRaw) : null;
+  const lat = parseCoordinate(latRaw);
+  const lng = parseCoordinate(lngRaw);
 
   if (!addressLine) {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });

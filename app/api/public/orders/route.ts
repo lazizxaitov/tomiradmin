@@ -13,6 +13,15 @@ function getYandexGeocoderKey() {
   );
 }
 
+function parseCoordinate(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim().replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 async function geocodeAddress(query: string) {
   const key = getYandexGeocoderKey();
   if (!key) return null;
@@ -71,8 +80,13 @@ export async function POST(request: Request) {
   let deliveryLat = body?.deliveryLat ?? body?.addressLat ?? body?.lat ?? body?.latitude ?? null;
   let deliveryLng = body?.deliveryLng ?? body?.addressLng ?? body?.lng ?? body?.longitude ?? null;
 
-  const hasCoords =
-    Number.isFinite(Number(deliveryLat)) && Number.isFinite(Number(deliveryLng));
+  const parsedLat = parseCoordinate(deliveryLat);
+  const parsedLng = parseCoordinate(deliveryLng);
+  const hasCoords = parsedLat !== null && parsedLng !== null;
+  if (hasCoords) {
+    deliveryLat = parsedLat;
+    deliveryLng = parsedLng;
+  }
 
   if (!hasCoords && addressLine) {
     const point = await geocodeAddress(addressLine);

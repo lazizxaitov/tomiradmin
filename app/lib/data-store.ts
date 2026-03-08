@@ -197,6 +197,19 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function parseCoordinate(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(",", ".");
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function normalizePhone(phone: string | null | undefined) {
   const trimmed = phone?.toString().trim();
   if (!trimmed) return null;
@@ -696,8 +709,8 @@ function nextId<T extends { id: number }>(items: T[]) {
 
 function resolveBranchIdByGeo(lat?: number | null, lng?: number | null) {
   const activeBranches = store.branches.filter((branch) => branch.is_active === 1);
-  const validLat = Number.isFinite(lat) ? Number(lat) : null;
-  const validLng = Number.isFinite(lng) ? Number(lng) : null;
+  const validLat = parseCoordinate(lat);
+  const validLng = parseCoordinate(lng);
 
   if (validLat === null || validLng === null) {
     return activeBranches[0]?.id ?? store.branches[0]?.id ?? 1;
@@ -722,8 +735,10 @@ function resolveBranchIdByGeo(lat?: number | null, lng?: number | null) {
   let nearestDistance = Number.POSITIVE_INFINITY;
 
   for (const branch of activeBranches) {
-    if (!Number.isFinite(branch.lat) || !Number.isFinite(branch.lng)) continue;
-    const d = distance(validLat, validLng, Number(branch.lat), Number(branch.lng));
+    const branchLat = parseCoordinate(branch.lat);
+    const branchLng = parseCoordinate(branch.lng);
+    if (branchLat === null || branchLng === null) continue;
+    const d = distance(validLat, validLng, branchLat, branchLng);
     if (d < nearestDistance) {
       nearestDistance = d;
       nearestId = branch.id;
@@ -1089,14 +1104,16 @@ export function createBranch(input: {
   isActive?: boolean;
 }) {
   const now = nowIso();
+  const lat = parseCoordinate(input.lat);
+  const lng = parseCoordinate(input.lng);
   const branch: Branch = {
     id: nextId(store.branches),
     title: input.title.trim(),
     address: input.address.trim(),
     phone: input.phone?.trim() || null,
     work_hours: input.workHours?.trim() || null,
-    lat: Number.isFinite(input.lat) ? Number(input.lat) : null,
-    lng: Number.isFinite(input.lng) ? Number(input.lng) : null,
+    lat,
+    lng,
     is_active: input.isActive === false ? 0 : 1,
     created_at: now,
     updated_at: now,
@@ -1125,8 +1142,8 @@ export function updateBranch(
   if (input.address?.trim()) branch.address = input.address.trim();
   if (input.phone !== undefined) branch.phone = input.phone?.trim() || null;
   if (input.workHours !== undefined) branch.work_hours = input.workHours?.trim() || null;
-  if (input.lat !== undefined) branch.lat = Number.isFinite(input.lat) ? Number(input.lat) : null;
-  if (input.lng !== undefined) branch.lng = Number.isFinite(input.lng) ? Number(input.lng) : null;
+  if (input.lat !== undefined) branch.lat = parseCoordinate(input.lat);
+  if (input.lng !== undefined) branch.lng = parseCoordinate(input.lng);
   if (input.isActive !== undefined) branch.is_active = input.isActive ? 1 : 0;
   branch.updated_at = nowIso();
   void persistStore();
@@ -1393,8 +1410,8 @@ export function listCustomerAddresses(customerId: number) {
     })
     .map((row) => ({
       ...row,
-      lat: Number.isFinite(row.lat) ? Number(row.lat) : null,
-      lng: Number.isFinite(row.lng) ? Number(row.lng) : null,
+      lat: parseCoordinate(row.lat),
+      lng: parseCoordinate(row.lng),
     }));
 }
 
@@ -1410,6 +1427,8 @@ export function addCustomerAddress(
   }
 ) {
   const now = nowIso();
+  const lat = parseCoordinate(input.lat);
+  const lng = parseCoordinate(input.lng);
   if (input.isDefault) {
     store.customer_addresses.forEach((row) => {
       if (row.customer_id === customerId) {
@@ -1425,8 +1444,8 @@ export function addCustomerAddress(
     label: input.label ?? null,
     address_line: input.addressLine,
     comment: input.comment ?? null,
-    lat: Number.isFinite(input.lat) ? Number(input.lat) : null,
-    lng: Number.isFinite(input.lng) ? Number(input.lng) : null,
+    lat,
+    lng,
     is_default: input.isDefault ? 1 : 0,
     created_at: now,
     updated_at: now,
@@ -1777,10 +1796,8 @@ export function createPublicOrder(payload: {
     return { error: "Missing items", status: 400 as const };
   }
 
-  const deliveryLatRaw = Number(payload.deliveryLat);
-  const deliveryLngRaw = Number(payload.deliveryLng);
-  let deliveryLat = Number.isFinite(deliveryLatRaw) ? deliveryLatRaw : null;
-  let deliveryLng = Number.isFinite(deliveryLngRaw) ? deliveryLngRaw : null;
+  let deliveryLat = parseCoordinate(payload.deliveryLat);
+  let deliveryLng = parseCoordinate(payload.deliveryLng);
 
   const normalizedPhone = normalizePhone(payload.customerPhone ?? null);
   const customerName = payload.customerName?.trim();
@@ -1853,11 +1870,13 @@ export function createPublicOrder(payload: {
   if ((deliveryLat === null || deliveryLng === null) && customerAddressId) {
     const selectedAddress = store.customer_addresses.find((row) => row.id === customerAddressId);
     if (selectedAddress) {
-      if (deliveryLat === null && Number.isFinite(selectedAddress.lat)) {
-        deliveryLat = Number(selectedAddress.lat);
+      const selectedLat = parseCoordinate(selectedAddress.lat);
+      const selectedLng = parseCoordinate(selectedAddress.lng);
+      if (deliveryLat === null && selectedLat !== null) {
+        deliveryLat = selectedLat;
       }
-      if (deliveryLng === null && Number.isFinite(selectedAddress.lng)) {
-        deliveryLng = Number(selectedAddress.lng);
+      if (deliveryLng === null && selectedLng !== null) {
+        deliveryLng = selectedLng;
       }
     }
   }
