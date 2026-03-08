@@ -1849,14 +1849,16 @@ export function createPublicOrder(payload: {
         customerAddressId = matchedAddress.id;
       }
     }
-  } else if (customerName) {
+  } else {
     const existingByPhone = normalizedPhone
       ? store.customers.find((customer) => customer.phone === normalizedPhone)
       : null;
 
     if (existingByPhone) {
       customerId = existingByPhone.id;
-      existingByPhone.name = customerName;
+      if (customerName) {
+        existingByPhone.name = customerName;
+      }
       existingByPhone.updated_at = nowIso();
 
       if (bonusUsedRequested > 0) {
@@ -1874,7 +1876,7 @@ export function createPublicOrder(payload: {
           customerAddressId = matchedAddress.id;
         }
       }
-    } else {
+    } else if (customerName) {
       const now = nowIso();
       const customer: Customer = {
         id: nextId(store.customers),
