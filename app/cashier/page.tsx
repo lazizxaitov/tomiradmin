@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Courier = {
   id: number;
+  branch_id?: number;
   name: string;
   phone?: string | null;
   car_number?: string | null;
@@ -28,6 +29,7 @@ type Order = {
   address_comment?: string | null;
   address_label?: string | null;
   courier_id?: number | null;
+  outsource_provider?: "yandex" | null;
   payment_method?: string | null;
   items: OrderItem[];
 };
@@ -311,18 +313,29 @@ export default function CashierPage() {
                   <label className="text-sm font-semibold text-[#3c2828]">
                     Доставщик
                     <select
-                      value={order.courier_id ?? ""}
-                      onChange={(event) =>
+                      value={order.outsource_provider === "yandex" ? "__yandex__" : order.courier_id ?? ""}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (value === "__yandex__") {
+                          updateOrder(order.id, { courierId: "__yandex__", outsourceProvider: "yandex" });
+                          return;
+                        }
                         updateOrder(order.id, {
-                          courierId: event.target.value ? Number(event.target.value) : null,
-                        })
-                      }
+                          courierId: value ? Number(value) : null,
+                          outsourceProvider: null,
+                        });
+                      }}
                       className="mt-2 w-full rounded-2xl border border-[#e7d5cf] bg-white px-3 py-2 text-sm"
                     >
                       <option value="">Не назначен</option>
+                      <option value="__yandex__">Яндекс доставка (Аутсорс)</option>
+                      <option value="" disabled>
+                        -- Для всех филиалов --
+                      </option>
                       {couriers.map((courier) => (
                         <option key={courier.id} value={courier.id}>
                           {courier.name}
+                          {courier.branch_id ? ` · Филиал #${courier.branch_id}` : ""}
                           {courier.phone ? ` · ${courier.phone}` : ""}
                           {courier.car_number ? ` · ${courier.car_number}` : ""}
                         </option>
@@ -356,7 +369,7 @@ export default function CashierPage() {
                   {order.status === "accepted" ? (
                     <button
                       onClick={() => updateOrder(order.id, { status: "in_delivery" })}
-                      disabled={!order.courier_id}
+                      disabled={!order.courier_id && order.outsource_provider !== "yandex"}
                       className="rounded-2xl border border-[#e7d5cf] bg-white px-4 py-2 text-sm font-bold text-[#3c2828] disabled:opacity-60"
                     >
                       Доставляется

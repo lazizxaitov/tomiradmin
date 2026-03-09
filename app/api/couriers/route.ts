@@ -12,8 +12,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const branchId = cashier && !session ? Number(cashier.b ?? 0) || undefined : undefined;
-  return NextResponse.json({ items: listCouriers(branchId) });
+  return NextResponse.json({ items: listCouriers() });
 }
 
 export async function POST(request: Request) {

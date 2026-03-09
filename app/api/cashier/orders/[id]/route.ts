@@ -20,15 +20,26 @@ export async function PUT(
   }
 
   const body = await request.json().catch(() => null);
-  const courierId =
-    body?.courierId === undefined || body?.courierId === null
-      ? undefined
-      : body?.courierId
-        ? Number(body.courierId)
-        : null;
+  const rawCourierId = body?.courierId;
+  let courierId: number | null | undefined = undefined;
+  let outsourceProvider: "yandex" | null | undefined = undefined;
+
+  if (rawCourierId === "__yandex__" || body?.outsourceProvider === "yandex") {
+    courierId = null;
+    outsourceProvider = "yandex";
+  } else if (rawCourierId === undefined || rawCourierId === null) {
+    courierId = undefined;
+  } else if (rawCourierId === "") {
+    courierId = null;
+    outsourceProvider = null;
+  } else {
+    courierId = Number(rawCourierId);
+    outsourceProvider = null;
+  }
 
   const ok = updateCashierOrder(id, Number(session.b ?? 0) || undefined, {
     courierId,
+    outsourceProvider,
     status: body?.status?.toString()?.trim(),
     cancelReason: body?.cancelReason?.toString()?.trim() ?? null,
   });

@@ -141,6 +141,7 @@ export type Order = {
   bonus_used: number;
   bonus_earned: number;
   courier_id: number | null;
+  outsource_provider?: "yandex" | null;
   payment_method: "cash" | "card" | null;
   accepted_at: string | null;
   in_delivery_at: string | null;
@@ -549,6 +550,7 @@ const ordersSeed: Order[] = [
     bonus_used: 0,
     bonus_earned: 0,
     courier_id: null,
+    outsource_provider: null,
     payment_method: "cash",
     accepted_at: null,
     in_delivery_at: null,
@@ -570,6 +572,7 @@ const ordersSeed: Order[] = [
     bonus_used: 0,
     bonus_earned: 0,
     courier_id: 1,
+    outsource_provider: null,
     payment_method: "card",
     accepted_at: seededAt,
     in_delivery_at: null,
@@ -1641,9 +1644,9 @@ export function listCustomerOrders(customerId: number) {
       ...order,
       status,
       courier,
-      courier_name: courier?.name ?? null,
-      courier_phone: courier?.phone ?? null,
-      courier_car_number: courier?.car_number ?? null,
+      courier_name: order.outsource_provider === "yandex" ? "Яндекс доставка" : courier?.name ?? null,
+      courier_phone: order.outsource_provider === "yandex" ? null : courier?.phone ?? null,
+      courier_car_number: order.outsource_provider === "yandex" ? null : courier?.car_number ?? null,
       address,
       items,
     };
@@ -1777,9 +1780,9 @@ export function listCashierOrders(branchId?: number) {
       address_line: address?.address_line ?? null,
       address_comment: address?.comment ?? null,
       address_label: address?.label ?? null,
-      courier_name: courier?.name ?? null,
-      courier_phone: courier?.phone ?? null,
-      courier_car_number: courier?.car_number ?? null,
+      courier_name: order.outsource_provider === "yandex" ? "Яндекс доставка" : courier?.name ?? null,
+      courier_phone: order.outsource_provider === "yandex" ? null : courier?.phone ?? null,
+      courier_car_number: order.outsource_provider === "yandex" ? null : courier?.car_number ?? null,
       branch: store.branches.find((row) => row.id === order.branch_id) ?? null,
       items,
     };
@@ -1789,18 +1792,32 @@ export function listCashierOrders(branchId?: number) {
 export function updateCashierOrder(
   orderId: number,
   branchId: number | null | undefined,
-  payload: { courierId?: number | null; status?: string; cancelReason?: string | null },
+  payload: {
+    courierId?: number | null;
+    outsourceProvider?: "yandex" | null;
+    status?: string;
+    cancelReason?: string | null;
+  },
 ) {
   const order = store.orders.find((row) => row.id === orderId);
   if (!order) return false;
   if (branchId && order.branch_id !== branchId) return false;
 
   const now = nowIso();
+  if (payload.outsourceProvider !== undefined) {
+    order.outsource_provider = payload.outsourceProvider;
+    if (payload.outsourceProvider === "yandex") {
+      order.courier_id = null;
+    }
+  }
+
   if (payload.courierId !== undefined) {
     if (payload.courierId !== null) {
       const courier = store.couriers.find((row) => row.id === payload.courierId);
       if (!courier) return false;
-      if (branchId && courier.branch_id !== branchId) return false;
+      order.outsource_provider = null;
+    } else if (payload.outsourceProvider === undefined) {
+      order.outsource_provider = null;
     }
     order.courier_id = payload.courierId;
   }
@@ -2037,6 +2054,7 @@ export function createPublicOrder(payload: {
     bonus_used: bonusUsed,
     bonus_earned: 0,
     courier_id: null,
+    outsource_provider: null,
     payment_method: paymentMethod === "card" ? "card" : "cash",
     accepted_at: null,
     in_delivery_at: null,
