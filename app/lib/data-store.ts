@@ -30,6 +30,10 @@ export type Product = {
   pricing_mode: "quantity" | "portion";
   stock: number;
   is_active: 0 | 1;
+  is_top: 0 | 1;
+  is_promo: 0 | 1;
+  old_price: number | null;
+  promo_price: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -287,6 +291,10 @@ const productsSeed: Product[] = [
     pricing_mode: "quantity",
     stock: 24,
     is_active: 1,
+    is_top: 1,
+    is_promo: 0,
+    old_price: null,
+    promo_price: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -305,6 +313,10 @@ const productsSeed: Product[] = [
     pricing_mode: "quantity",
     stock: 14,
     is_active: 1,
+    is_top: 0,
+    is_promo: 1,
+    old_price: 55000,
+    promo_price: 49500,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -323,6 +335,10 @@ const productsSeed: Product[] = [
     pricing_mode: "quantity",
     stock: 41,
     is_active: 1,
+    is_top: 1,
+    is_promo: 0,
+    old_price: null,
+    promo_price: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -341,6 +357,10 @@ const productsSeed: Product[] = [
     pricing_mode: "quantity",
     stock: 8,
     is_active: 0,
+    is_top: 0,
+    is_promo: 0,
+    old_price: null,
+    promo_price: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -757,10 +777,20 @@ function resolveBranchIdByGeo(lat?: number | null, lng?: number | null) {
   return nearestId;
 }
 
-export function listProducts(options?: { onlyActive?: boolean; categoryId?: number }) {
+export function listProducts(options?: {
+  onlyActive?: boolean;
+  categoryId?: number;
+  onlyTop?: boolean;
+  onlyPromotional?: boolean;
+}) {
   const filtered = store.products.filter((product) => {
     if (options?.onlyActive && product.is_active !== 1) return false;
     if (options?.categoryId && product.category_id !== options.categoryId) return false;
+    const isTop = Number((product as Partial<Product>).is_top ?? 0) === 1;
+    const isPromo = Number((product as Partial<Product>).is_promo ?? 0) === 1;
+    const promoPrice = Number((product as Partial<Product>).promo_price ?? 0);
+    if (options?.onlyTop && !isTop) return false;
+    if (options?.onlyPromotional && !(isPromo && promoPrice > 0)) return false;
     return true;
   });
 
@@ -779,8 +809,41 @@ export function listProducts(options?: { onlyActive?: boolean; categoryId?: numb
         price: row.price,
       }));
 
+    const basePrice = Number(item.price ?? 0);
+    const isTop = Number((item as Partial<Product>).is_top ?? 0) === 1;
+    const isPromo = Number((item as Partial<Product>).is_promo ?? 0) === 1;
+    const oldPriceRaw = Number((item as Partial<Product>).old_price ?? 0);
+    const promoPriceRaw = Number((item as Partial<Product>).promo_price ?? 0);
+    const legacyDiscountPercent = Number((item as unknown as { discount_percent?: number }).discount_percent ?? 0);
+
+    const oldPrice =
+      isPromo && oldPriceRaw > 0
+        ? oldPriceRaw
+        : legacyDiscountPercent > 0
+          ? basePrice
+          : null;
+    const promoPrice =
+      isPromo && promoPriceRaw > 0
+        ? promoPriceRaw
+        : legacyDiscountPercent > 0
+          ? Math.max(0, Math.round(basePrice - (basePrice * legacyDiscountPercent) / 100))
+          : null;
+    const discountPercent =
+      oldPrice && promoPrice && oldPrice > 0 && promoPrice < oldPrice
+        ? Math.round(((oldPrice - promoPrice) / oldPrice) * 100)
+        : legacyDiscountPercent > 0
+          ? legacyDiscountPercent
+          : 0;
+    const discountedPrice = promoPrice ?? basePrice;
+
     return {
       ...item,
+      is_top: isTop ? 1 : 0,
+      is_promo: isPromo ? 1 : 0,
+      old_price: oldPrice,
+      promo_price: promoPrice,
+      discount_percent: discountPercent,
+      discounted_price: discountedPrice,
       images,
       portionOptions,
     };
@@ -867,12 +930,19 @@ export function createProduct(input: {
   pricingMode?: "quantity" | "portion";
   stock?: number;
   isActive?: boolean;
+  isTop?: boolean;
+  isPromo?: boolean;
+  oldPrice?: number | null;
+  promoPrice?: number | null;
   images?: string[];
   portionOptions?: Array<{ labelRu?: string; labelUz?: string; price?: number }>;
 }) {
   const now = nowIso();
   const productId = nextId(store.products);
 
+  const isPromo = input.isPromo === true;
+  const oldPrice = isPromo ? Math.max(0, Number(input.oldPrice ?? 0)) : 0;
+  const promoPrice = isPromo ? Math.max(0, Number(input.promoPrice ?? 0)) : 0;
   const product: Product = {
     id: productId,
     category_id: input.categoryId ?? null,
@@ -888,6 +958,10 @@ export function createProduct(input: {
     pricing_mode: input.pricingMode === "portion" ? "portion" : "quantity",
     stock: Number(input.stock ?? 0),
     is_active: input.isActive === false ? 0 : 1,
+    is_top: input.isTop ? 1 : 0,
+    is_promo: isPromo && oldPrice > 0 && promoPrice > 0 && promoPrice < oldPrice ? 1 : 0,
+    old_price: isPromo && oldPrice > 0 ? oldPrice : null,
+    promo_price: isPromo && promoPrice > 0 ? promoPrice : null,
     created_at: now,
     updated_at: now,
   };
@@ -937,6 +1011,10 @@ export function updateProduct(
     pricingMode?: "quantity" | "portion";
     stock?: number;
     isActive?: boolean;
+    isTop?: boolean;
+    isPromo?: boolean;
+    oldPrice?: number | null;
+    promoPrice?: number | null;
     images?: string[];
     portionOptions?: Array<{ labelRu?: string; labelUz?: string; price?: number }>;
   },
@@ -957,6 +1035,24 @@ export function updateProduct(
   if (input.pricingMode !== undefined) product.pricing_mode = input.pricingMode;
   if (input.stock !== undefined) product.stock = Number(input.stock ?? 0);
   if (input.isActive !== undefined) product.is_active = input.isActive ? 1 : 0;
+  if (input.isTop !== undefined) product.is_top = input.isTop ? 1 : 0;
+  if (input.isPromo !== undefined || input.oldPrice !== undefined || input.promoPrice !== undefined) {
+    const isPromo = input.isPromo ?? product.is_promo === 1;
+    const oldPrice = input.oldPrice !== undefined ? Number(input.oldPrice ?? 0) : Number(product.old_price ?? 0);
+    const promoPrice =
+      input.promoPrice !== undefined ? Number(input.promoPrice ?? 0) : Number(product.promo_price ?? 0);
+
+    const validPromo =
+      isPromo === true &&
+      Number.isFinite(oldPrice) &&
+      Number.isFinite(promoPrice) &&
+      oldPrice > 0 &&
+      promoPrice > 0 &&
+      promoPrice < oldPrice;
+    product.is_promo = validPromo ? 1 : 0;
+    product.old_price = validPromo ? oldPrice : null;
+    product.promo_price = validPromo ? promoPrice : null;
+  }
   product.updated_at = nowIso();
 
   if (input.images !== undefined) {

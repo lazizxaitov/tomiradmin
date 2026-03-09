@@ -14,6 +14,12 @@ type Product = {
   description_text_ru: string | null;
   description_text_uz: string | null;
   price: number;
+  discounted_price?: number;
+  discount_percent?: number;
+  is_top?: 0 | 1;
+  is_promo?: 0 | 1;
+  old_price?: number | null;
+  promo_price?: number | null;
   stock: number;
   images?: string[];
 };
@@ -68,6 +74,10 @@ const initialForm = {
   descriptionTextUz: "",
   categoryId: "",
   price: "",
+  isTop: false,
+  isPromo: false,
+  oldPrice: "",
+  promoPrice: "",
   stock: "",
   images: [] as string[],
 };
@@ -121,6 +131,10 @@ export default function ProductsPage() {
         descriptionTextUz: form.descriptionTextUz,
         categoryId: Number(form.categoryId),
         price: Number(form.price),
+        isTop: form.isTop,
+        isPromo: form.isPromo,
+        oldPrice: form.isPromo ? Number(form.oldPrice) : null,
+        promoPrice: form.isPromo ? Number(form.promoPrice) : null,
         stock: Number(form.stock),
         images: form.images,
       }),
@@ -139,6 +153,10 @@ export default function ProductsPage() {
       descriptionTextUz: product.description_text_uz ?? "",
       categoryId: product.category_id ? String(product.category_id) : "",
       price: String(product.price ?? 0),
+      isTop: product.is_top === 1,
+      isPromo: product.is_promo === 1,
+      oldPrice: product.old_price ? String(product.old_price) : "",
+      promoPrice: product.promo_price ? String(product.promo_price) : "",
       stock: String(product.stock ?? 0),
       images: product.images ?? [],
     });
@@ -157,6 +175,10 @@ export default function ProductsPage() {
         descriptionTextUz: form.descriptionTextUz,
         categoryId: Number(form.categoryId),
         price: Number(form.price),
+        isTop: form.isTop,
+        isPromo: form.isPromo,
+        oldPrice: form.isPromo ? Number(form.oldPrice) : null,
+        promoPrice: form.isPromo ? Number(form.promoPrice) : null,
         stock: Number(form.stock),
         images: form.images,
       }),
@@ -197,6 +219,41 @@ export default function ProductsPage() {
         ))}
       </select>
       <input className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm" placeholder="Цена" value={form.price} onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))} />
+      <label className="flex items-center gap-2 text-sm text-[#5b4647]">
+        <input type="checkbox" checked={form.isTop} onChange={(event) => setForm((prev) => ({ ...prev, isTop: event.target.checked }))} />
+        Топ товар
+      </label>
+      <label className="flex items-center gap-2 text-sm text-[#5b4647]">
+        <input
+          type="checkbox"
+          checked={form.isPromo}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              isPromo: event.target.checked,
+              oldPrice: event.target.checked ? prev.oldPrice : "",
+              promoPrice: event.target.checked ? prev.promoPrice : "",
+            }))
+          }
+        />
+        Товар в скидке
+      </label>
+      {form.isPromo ? (
+        <>
+          <input
+            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
+            placeholder="Старая цена"
+            value={form.oldPrice}
+            onChange={(event) => setForm((prev) => ({ ...prev, oldPrice: event.target.value }))}
+          />
+          <input
+            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
+            placeholder="Цена со скидкой"
+            value={form.promoPrice}
+            onChange={(event) => setForm((prev) => ({ ...prev, promoPrice: event.target.value }))}
+          />
+        </>
+      ) : null}
       <input className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm" placeholder="Остаток" value={form.stock} onChange={(event) => setForm((prev) => ({ ...prev, stock: event.target.value }))} />
 
       <div className="grid gap-2 rounded-2xl border border-[#ead8d1] p-3">
@@ -264,8 +321,27 @@ export default function ProductsPage() {
             ) : null}
             <p className="text-base font-bold text-[#3c2828]">{item.title_ru}</p>
             <p className="text-sm text-[#8d7374]">{item.title_uz}</p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {item.is_top === 1 ? <span className="rounded-full bg-[#8c0f16] px-2 py-1 text-xs font-bold text-white">Топ</span> : null}
+              {item.is_promo === 1 && Number(item.promo_price ?? 0) > 0 ? (
+                <span className="rounded-full bg-[#6fb833] px-2 py-1 text-xs font-bold text-white">
+                  Акция
+                </span>
+              ) : null}
+            </div>
             {item.description_text_ru ? <p className="mt-2 text-sm text-[#6b5253]">{item.description_text_ru}</p> : null}
-            <p className="mt-2 text-sm text-[#8d7374]">{item.price.toLocaleString("ru-RU")} сум · Остаток: {item.stock}</p>
+            <p className="mt-2 text-sm text-[#8d7374]">
+              {item.is_promo === 1 && Number(item.old_price ?? 0) > 0 && Number(item.promo_price ?? 0) > 0 ? (
+                <>
+                  <span className="line-through">{Number(item.old_price).toLocaleString("ru-RU")} сум</span>
+                  {" -> "}
+                  <span className="font-bold text-[#3c2828]">{Number(item.promo_price).toLocaleString("ru-RU")} сум</span>
+                </>
+              ) : (
+                <>{item.price.toLocaleString("ru-RU")} сум</>
+              )}
+              {" · "}Остаток: {item.stock}
+            </p>
             <div className="mt-3 flex gap-2">
               <GhostButton type="button" onClick={() => startEdit(item)}>Изменить</GhostButton>
               <GhostButton type="button" className="border-[#f1cdcf] text-[#8c0f16] hover:border-[#8c0f16]" onClick={() => void remove(item.id)}>

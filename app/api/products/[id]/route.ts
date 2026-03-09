@@ -38,6 +38,10 @@ export async function PATCH(
     pricingMode: body?.pricingMode === "portion" ? "portion" : "quantity",
     stock: Number(body?.stock ?? 0),
     isActive: body?.isActive === false ? false : true,
+    isTop: body?.isTop === true,
+    isPromo: body?.isPromo === true,
+    oldPrice: body?.oldPrice !== undefined ? Number(body?.oldPrice) : null,
+    promoPrice: body?.promoPrice !== undefined ? Number(body?.promoPrice) : null,
     images: Array.isArray(body?.images) ? body.images : [],
     portionOptions: Array.isArray(body?.portionOptions) ? body.portionOptions : [],
   });

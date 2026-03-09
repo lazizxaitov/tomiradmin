@@ -5,7 +5,7 @@ import { rateLimit, requirePublicApiKey } from "@/app/lib/public-auth";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   const authError = await requirePublicApiKey();
   if (authError) {
     return NextResponse.json({ error: authError.message }, { status: authError.status });
@@ -16,6 +16,13 @@ export async function GET() {
     return NextResponse.json({ error: rateError.message }, { status: rateError.status });
   }
 
-  const items = listProducts({ onlyActive: true });
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get("type")?.trim();
+
+  const items = listProducts({
+    onlyActive: true,
+    onlyTop: type === "top",
+    onlyPromotional: type === "promo",
+  });
   return NextResponse.json({ items });
 }
