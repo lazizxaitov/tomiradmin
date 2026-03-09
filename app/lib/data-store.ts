@@ -2095,3 +2095,10 @@ export function listAdminOrders() {
   }));
 }
 
+export function resetOrderStatsAndHistory() {
+  store.orders = [];
+  store.order_items = [];
+  void persistStore();
+  return { ok: true as const };
+}
+

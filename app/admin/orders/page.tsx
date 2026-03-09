@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Card, GhostButton, Modal, SectionTitle } from "../_components/ui";
+import { Card, GhostButton, Modal, PrimaryButton, SectionTitle } from "../_components/ui";
 
 type Order = {
   id: number;
@@ -27,12 +27,31 @@ export default function OrdersPage() {
   const [items, setItems] = useState<Order[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+  const [resetting, setResetting] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
     fetch("/api/orders")
       .then((res) => res.json())
       .then((data) => setItems(data.items ?? []));
+  };
+
+  useEffect(() => {
+    load();
   }, []);
+
+  const resetStatsAndHistory = async () => {
+    if (!window.confirm("Обнулить статистику и историю заказов? Клиенты не будут удалены.")) return;
+    setResetting(true);
+    const response = await fetch("/api/admin/reset-orders", { method: "POST" });
+    setResetting(false);
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      alert(data?.error ?? "Не удалось обнулить статистику");
+      return;
+    }
+    load();
+    alert("Статистика и история заказов обнулены.");
+  };
 
   const analyticsItems = useMemo(
     () => items.filter((order) => order.status !== "canceled"),
@@ -92,6 +111,14 @@ export default function OrdersPage() {
   return (
     <div className="space-y-6">
       <SectionTitle title="Аналитика заказов" subtitle="Отчеты по заказам" />
+      <Card className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-[#8d7374]">
+          Временный сброс после тестов: удаляет только заказы и позиции заказов.
+        </p>
+        <PrimaryButton onClick={() => void resetStatsAndHistory()} disabled={resetting}>
+          {resetting ? "Сброс..." : "Обнулить статистику и историю"}
+        </PrimaryButton>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
