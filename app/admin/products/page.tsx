@@ -313,40 +313,62 @@ export default function ProductsPage() {
           Добавить
         </PrimaryButton>
       </Card>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3">
         {filteredItems.map((item) => (
-          <Card key={item.id}>
-            {item.images?.[0] ? (
-              <Image src={item.images[0]} alt={item.title_ru} width={520} height={280} unoptimized className="mb-3 h-36 w-full rounded-2xl object-cover" />
-            ) : null}
-            <p className="text-base font-bold text-[#3c2828]">{item.title_ru}</p>
-            <p className="text-sm text-[#8d7374]">{item.title_uz}</p>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {item.is_top === 1 ? <span className="rounded-full bg-[#8c0f16] px-2 py-1 text-xs font-bold text-white">Топ</span> : null}
-              {item.is_promo === 1 && Number(item.promo_price ?? 0) > 0 ? (
-                <span className="rounded-full bg-[#6fb833] px-2 py-1 text-xs font-bold text-white">
-                  Акция
-                </span>
-              ) : null}
-            </div>
-            {item.description_text_ru ? <p className="mt-2 text-sm text-[#6b5253]">{item.description_text_ru}</p> : null}
-            <p className="mt-2 text-sm text-[#8d7374]">
-              {item.is_promo === 1 && Number(item.old_price ?? 0) > 0 && Number(item.promo_price ?? 0) > 0 ? (
-                <>
-                  <span className="line-through">{Number(item.old_price).toLocaleString("ru-RU")} сум</span>
-                  {" -> "}
-                  <span className="font-bold text-[#3c2828]">{Number(item.promo_price).toLocaleString("ru-RU")} сум</span>
-                </>
+          <Card key={item.id} className="p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              {item.images?.[0] ? (
+                <Image
+                  src={item.images[0]}
+                  alt={item.title_ru}
+                  width={84}
+                  height={84}
+                  unoptimized
+                  className="h-[72px] w-[72px] rounded-xl object-cover"
+                />
               ) : (
-                <>{item.price.toLocaleString("ru-RU")} сум</>
+                <div className="h-[72px] w-[72px] rounded-xl border border-[#ead8d1] bg-white" />
               )}
-              {" · "}Остаток: {item.stock}
-            </p>
-            <div className="mt-3 flex gap-2">
-              <GhostButton type="button" onClick={() => startEdit(item)}>Изменить</GhostButton>
-              <GhostButton type="button" className="border-[#f1cdcf] text-[#8c0f16] hover:border-[#8c0f16]" onClick={() => void remove(item.id)}>
-                Удалить
-              </GhostButton>
+              <div className="min-w-[220px] flex-1">
+                <p className="text-base font-bold text-[#3c2828]">{item.title_ru}</p>
+                <p className="text-sm text-[#8d7374]">{item.title_uz}</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {item.is_top === 1 ? (
+                    <span className="rounded-full bg-[#8c0f16] px-2 py-1 text-xs font-bold text-white">
+                      Топ
+                    </span>
+                  ) : null}
+                  {item.is_promo === 1 && Number(item.promo_price ?? 0) > 0 ? (
+                    <span className="rounded-full bg-[#6fb833] px-2 py-1 text-xs font-bold text-white">
+                      Акция
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm text-[#8d7374]">
+                  {item.is_promo === 1 && Number(item.old_price ?? 0) > 0 && Number(item.promo_price ?? 0) > 0 ? (
+                    <>
+                      <span className="line-through">{Number(item.old_price).toLocaleString("ru-RU")} сум</span>
+                      {" -> "}
+                      <span className="font-bold text-[#3c2828]">{Number(item.promo_price).toLocaleString("ru-RU")} сум</span>
+                    </>
+                  ) : (
+                    <>{item.price.toLocaleString("ru-RU")} сум</>
+                  )}
+                  {" · "}Остаток: {item.stock}
+                </p>
+              </div>
+              <div className="ml-auto flex gap-2">
+                <GhostButton type="button" onClick={() => startEdit(item)}>
+                  Изменить
+                </GhostButton>
+                <GhostButton
+                  type="button"
+                  className="border-[#f1cdcf] text-[#8c0f16] hover:border-[#8c0f16]"
+                  onClick={() => void remove(item.id)}
+                >
+                  Удалить
+                </GhostButton>
+              </div>
             </div>
           </Card>
         ))}
