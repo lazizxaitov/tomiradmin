@@ -283,8 +283,6 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
   const folders = await fetchAll<any>("/entity/productfolder");
   const stores = await fetchAll<any>("/entity/store");
   const priceTypes = await listMoyskladPriceTypes();
-  // Global free stock, simpler than by-store report for the admin catalog.
-  const stockReport = await moyskladFetch<any>("/report/stock/all/current?stockType=freeStock");
   const products = await fetchAll<any>("/entity/product", { expand: "salePrices.priceType" });
 
   let priceTypeId = integration.price_type_id;
@@ -301,15 +299,8 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
       priceTypes.find((item) => item.id === priceTypeId)?.name ?? integration.price_type_name;
   }
 
-  const stockRows = Array.isArray(stockReport?.rows) ? stockReport.rows : [];
+  // Stock is synced via the "Остатки" window per store. Global stock report is too heavy for large accounts.
   const stockByProduct = new Map<string, number>();
-  stockRows.forEach((row: any) => {
-    const id = extractId(row?.assortment?.meta);
-    if (!id) return;
-    const value = Number(row?.freeStock ?? row?.stock ?? row?.quantity ?? 0);
-    if (!Number.isFinite(value)) return;
-    stockByProduct.set(id, (stockByProduct.get(id) ?? 0) + value);
-  });
 
   const now = nowIso();
   let nextCategoryId =
@@ -354,10 +345,9 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
         : null) ?? salePrices[0];
     const priceValue = Number(matchedPrice?.value ?? 0);
     const price = Number.isFinite(priceValue) ? Math.round(priceValue / 100) : 0;
-    const stockValue =
-      stockByProduct.has(product?.id ?? "")
-        ? Number(stockByProduct.get(product?.id ?? "") ?? 0)
-        : Number(existing?.stock ?? 0);
+    const stockValue = stockByProduct.has(product?.id ?? "")
+      ? Number(stockByProduct.get(product?.id ?? "") ?? 0)
+      : Number(existing?.stock ?? 0);
     return {
       id,
       category_id: categoryId,
