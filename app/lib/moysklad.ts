@@ -177,6 +177,22 @@ export async function syncMoyskladCatalog() {
   if (!integration.enabled) throw new Error("Интеграция МойСклад выключена");
   requireAuth();
 
+  const existingCategoriesByMoyId = new Map<string, any>();
+  store.categories.forEach((category: any) => {
+    if (category?.moysklad_id) existingCategoriesByMoyId.set(String(category.moysklad_id), category);
+  });
+
+  const existingProductsByMoyId = new Map<string, any>();
+  store.products.forEach((product: any) => {
+    if (product?.moysklad_id) existingProductsByMoyId.set(String(product.moysklad_id), product);
+  });
+
+  const existingImagesByProductId = new Map<number, any[]>();
+  store.product_images.forEach((img: any) => {
+    if (!existingImagesByProductId.has(img.product_id)) existingImagesByProductId.set(img.product_id, []);
+    existingImagesByProductId.get(img.product_id)!.push(img);
+  });
+
   const [folders, products, stores, priceTypes, stockReport] = await Promise.all([
     fetchAll<any>("/entity/productfolder"),
     fetchAll<any>("/entity/product", { expand: "salePrices.priceType" }),
@@ -210,24 +226,39 @@ export async function syncMoyskladCatalog() {
   });
 
   const now = nowIso();
-  const categories = folders.map((folder: any, index: number) => ({
-    id: index + 1,
-    name_ru: folder?.name?.toString() ?? "Категория",
-    name_uz: folder?.name?.toString() ?? "Kategoriya",
-    slug: slugify(folder?.name?.toString() ?? `category-${index + 1}`),
-    image_url: null,
-    sort_order: index + 1,
-    moysklad_id: folder?.id ?? null,
-    created_at: now,
-    updated_at: now,
-  }));
+  let nextCategoryId =
+    store.categories.reduce((max: number, item: any) => Math.max(max, Number(item?.id ?? 0)), 0) + 1;
+
+  const categories = folders.map((folder: any, index: number) => {
+    const moyId = folder?.id ? String(folder.id) : "";
+    const existing = moyId ? existingCategoriesByMoyId.get(moyId) : null;
+    const id = existing?.id ? Number(existing.id) : nextCategoryId++;
+    const name = folder?.name?.toString() ?? existing?.name_ru ?? "Категория";
+    return {
+      id,
+      name_ru: name,
+      name_uz: folder?.name?.toString() ?? existing?.name_uz ?? name,
+      slug: slugify(name || `category-${id}`),
+      image_url: existing?.image_url ?? null,
+      sort_order: index + 1,
+      moysklad_id: folder?.id ?? existing?.moysklad_id ?? null,
+      created_at: existing?.created_at ?? now,
+      updated_at: now,
+    };
+  });
 
   const categoryById = new Map<string, number>();
   categories.forEach((item) => {
     if (item.moysklad_id) categoryById.set(item.moysklad_id, item.id);
   });
 
+  let nextProductId =
+    store.products.reduce((max: number, item: any) => Math.max(max, Number(item?.id ?? 0)), 0) + 1;
+
   const productsMapped = products.map((product: any, index: number) => {
+    const moyId = product?.id ? String(product.id) : "";
+    const existing = moyId ? existingProductsByMoyId.get(moyId) : null;
+    const id = existing?.id ? Number(existing.id) : nextProductId++;
     const folderId = extractId(product?.productFolder?.meta);
     const categoryId = folderId ? categoryById.get(folderId) ?? null : null;
     const salePrices = Array.isArray(product?.salePrices) ? product.salePrices : [];
@@ -239,7 +270,7 @@ export async function syncMoyskladCatalog() {
     const price = Number.isFinite(priceValue) ? Math.round(priceValue / 100) : 0;
     const stockValue = Number(stockByProduct.get(product?.id ?? "") ?? 0);
     return {
-      id: index + 1,
+      id,
       category_id: categoryId,
       title_ru: product?.name?.toString() ?? "Товар",
       title_uz: product?.name?.toString() ?? "Mahsulot",
@@ -257,15 +288,17 @@ export async function syncMoyskladCatalog() {
       is_promo: 0,
       old_price: null,
       promo_price: null,
-      moysklad_id: product?.id ?? null,
-      created_at: now,
+      moysklad_id: product?.id ?? existing?.moysklad_id ?? null,
+      created_at: existing?.created_at ?? now,
       updated_at: now,
     };
   });
 
   store.categories = categories as any;
   store.products = productsMapped as any;
-  store.product_images = [];
+  // Preserve local product images for products that still exist (ids are stable by moysklad_id).
+  const validProductIds = new Set<number>(productsMapped.map((p: any) => Number(p.id)));
+  store.product_images = store.product_images.filter((img: any) => validProductIds.has(Number(img.product_id)));
   store.portion_options = [];
 
   // Keep existing branch list, only attempt to auto-map by name if empty.
