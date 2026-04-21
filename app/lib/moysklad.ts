@@ -159,8 +159,8 @@ async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
 }
 
 async function fetchAll<T>(pathName: string, params?: Record<string, string>) {
-  // Smaller page size avoids "terminated" on big accounts.
-  const limit = 200;
+  // Smaller page size avoids timeouts on big accounts.
+  const limit = 50;
   let offset = 0;
   let total = 0;
   const rows: T[] = [];
@@ -283,7 +283,8 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
   const folders = await fetchAll<any>("/entity/productfolder");
   const stores = await fetchAll<any>("/entity/store");
   const priceTypes = await listMoyskladPriceTypes();
-  const products = await fetchAll<any>("/entity/product", { expand: "salePrices.priceType" });
+  // Avoid `expand` here: it can make responses huge and cause ETIMEDOUT on big accounts.
+  const products = await fetchAll<any>("/entity/product");
 
   let priceTypeId = integration.price_type_id;
   if (!priceTypeId && integration.price_type_name) {
