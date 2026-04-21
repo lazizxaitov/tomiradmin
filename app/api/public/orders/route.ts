@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createPublicOrder } from "@/app/lib/data-store";
+import { attachMoyskladError, sendOrderToMoysklad } from "@/app/lib/moysklad";
 import { rateLimit, requirePublicApiKey } from "@/app/lib/public-auth";
 
 export const runtime = "nodejs";
@@ -114,6 +115,12 @@ export async function POST(request: Request) {
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  try {
+    await sendOrderToMoysklad(result.id);
+  } catch (error) {
+    await attachMoyskladError(result.id, error);
   }
 
   return NextResponse.json({ id: result.id, branchId: result.branchId });

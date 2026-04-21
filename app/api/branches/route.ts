@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     lat: body?.lat !== undefined ? Number(body.lat) : null,
     lng: body?.lng !== undefined ? Number(body.lng) : null,
     isActive: body?.isActive !== false,
+    moyskladStoreId: body?.moyskladStoreId?.toString()?.trim() ?? null,
   });
 
   return NextResponse.json({ item }, { status: 201 });

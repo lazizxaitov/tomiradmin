@@ -2,6 +2,7 @@
 
 import { getSession } from "@/app/lib/auth";
 import { createPublicOrder, listAdminOrders } from "@/app/lib/data-store";
+import { attachMoyskladError, sendOrderToMoysklad } from "@/app/lib/moysklad";
 
 function parseCoordinate(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -47,6 +48,12 @@ export async function POST(request: Request) {
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  try {
+    await sendOrderToMoysklad(result.id);
+  } catch (error) {
+    await attachMoyskladError(result.id, error);
   }
 
   return NextResponse.json({ id: result.id, branchId: result.branchId }, { status: 201 });

@@ -2,6 +2,7 @@
 
 import { getCashierSession } from "@/app/lib/auth";
 import { updateCashierOrder } from "@/app/lib/data-store";
+import { attachMoyskladError, sendRetailDemandToMoysklad } from "@/app/lib/moysklad";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,14 @@ export async function PUT(
 
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (body?.status?.toString()?.trim() === "completed") {
+    try {
+      await sendRetailDemandToMoysklad(id);
+    } catch (error) {
+      await attachMoyskladError(id, error);
+    }
   }
 
   return NextResponse.json({ ok: true });

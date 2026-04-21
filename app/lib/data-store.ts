@@ -11,6 +11,7 @@ export type Category = {
   slug: string;
   image_url: string | null;
   sort_order: number;
+  moysklad_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -34,6 +35,7 @@ export type Product = {
   is_promo: 0 | 1;
   old_price: number | null;
   promo_price: number | null;
+  moysklad_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -87,6 +89,7 @@ export type Customer = {
   phone: string | null;
   password: string | null;
   bonus_balance: number;
+  moysklad_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -113,6 +116,7 @@ export type Branch = {
   lat: number | null;
   lng: number | null;
   is_active: 0 | 1;
+  moysklad_store_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -148,6 +152,10 @@ export type Order = {
   completed_at: string | null;
   canceled_at: string | null;
   cancel_reason: string | null;
+  moysklad_customerorder_id?: string | null;
+  moysklad_retaildemand_id?: string | null;
+  moysklad_last_error?: string | null;
+  moysklad_synced_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -188,6 +196,20 @@ type Store = {
   cashier_accounts: CashierAccount[];
   orders: Order[];
   order_items: OrderItem[];
+  integrations?: {
+    moysklad: {
+      enabled: boolean;
+      base_url: string;
+      auth_mode: "token" | "basic";
+      token_enc: string | null;
+      login_enc: string | null;
+      password_enc: string | null;
+      price_type_id: string | null;
+      price_type_name: string | null;
+      last_sync_at: string | null;
+      last_sync_error: string | null;
+    };
+  };
 };
 
 function getDbPath() {
@@ -241,6 +263,7 @@ const categoriesSeed: Category[] = [
     slug: "himiya-dlya-doma",
     image_url: "https://picsum.photos/seed/tomir-cat-1/600/600",
     sort_order: 1,
+    moysklad_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -251,6 +274,7 @@ const categoriesSeed: Category[] = [
     slug: "posuda-dlya-kuhni",
     image_url: "https://picsum.photos/seed/tomir-cat-2/600/600",
     sort_order: 2,
+    moysklad_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -261,6 +285,7 @@ const categoriesSeed: Category[] = [
     slug: "tovary-dlya-detej",
     image_url: "https://picsum.photos/seed/tomir-cat-3/600/600",
     sort_order: 3,
+    moysklad_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -271,6 +296,7 @@ const categoriesSeed: Category[] = [
     slug: "tovary-dlya-doma",
     image_url: "https://picsum.photos/seed/tomir-cat-4/600/600",
     sort_order: 4,
+    moysklad_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -296,6 +322,7 @@ const productsSeed: Product[] = [
     is_promo: 0,
     old_price: null,
     promo_price: null,
+    moysklad_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -318,6 +345,7 @@ const productsSeed: Product[] = [
     is_promo: 1,
     old_price: 55000,
     promo_price: 49500,
+    moysklad_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -340,6 +368,7 @@ const productsSeed: Product[] = [
     is_promo: 0,
     old_price: null,
     promo_price: null,
+    moysklad_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -362,6 +391,7 @@ const productsSeed: Product[] = [
     is_promo: 0,
     old_price: null,
     promo_price: null,
+    moysklad_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -470,6 +500,7 @@ const branchesSeed: Branch[] = [
     lat: 41.36,
     lng: 69.29,
     is_active: 1,
+    moysklad_store_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -482,6 +513,7 @@ const branchesSeed: Branch[] = [
     lat: 41.28,
     lng: 69.2,
     is_active: 1,
+    moysklad_store_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -494,6 +526,7 @@ const branchesSeed: Branch[] = [
     lat: 41.31,
     lng: 69.36,
     is_active: 1,
+    moysklad_store_id: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -557,6 +590,10 @@ const ordersSeed: Order[] = [
     completed_at: null,
     canceled_at: null,
     cancel_reason: null,
+    moysklad_customerorder_id: null,
+    moysklad_retaildemand_id: null,
+    moysklad_last_error: null,
+    moysklad_synced_at: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -579,6 +616,10 @@ const ordersSeed: Order[] = [
     completed_at: null,
     canceled_at: null,
     cancel_reason: null,
+    moysklad_customerorder_id: null,
+    moysklad_retaildemand_id: null,
+    moysklad_last_error: null,
+    moysklad_synced_at: null,
     created_at: seededAt,
     updated_at: seededAt,
   },
@@ -646,6 +687,20 @@ const seededStore: Store = {
   cashier_accounts: structuredClone(cashierAccountsSeed),
   orders: structuredClone(ordersSeed),
   order_items: structuredClone(orderItemsSeed),
+  integrations: {
+    moysklad: {
+      enabled: false,
+      base_url: "https://api.moysklad.ru/api/remap/1.2",
+      auth_mode: "token",
+      token_enc: null,
+      login_enc: null,
+      password_enc: null,
+      price_type_id: null,
+      price_type_name: null,
+      last_sync_at: null,
+      last_sync_error: null,
+    },
+  },
 };
 
 async function getDb() {
@@ -657,6 +712,44 @@ async function getDb() {
     });
   }
   return globalStore.tomirDbPromise;
+}
+
+function normalizeStoreSnapshot(snapshot: Store) {
+  snapshot.integrations ??= {
+    moysklad: {
+      enabled: false,
+      base_url: "https://api.moysklad.ru/api/remap/1.2",
+      auth_mode: "token",
+      token_enc: null,
+      login_enc: null,
+      password_enc: null,
+      price_type_id: null,
+      price_type_name: null,
+      last_sync_at: null,
+      last_sync_error: null,
+    },
+  };
+
+  snapshot.categories.forEach((item) => {
+    if (item.moysklad_id === undefined) item.moysklad_id = null;
+  });
+  snapshot.products.forEach((item) => {
+    if (item.moysklad_id === undefined) item.moysklad_id = null;
+  });
+  snapshot.customers.forEach((item) => {
+    if (item.moysklad_id === undefined) item.moysklad_id = null;
+  });
+  snapshot.branches.forEach((item) => {
+    if (item.moysklad_store_id === undefined) item.moysklad_store_id = null;
+  });
+  snapshot.orders.forEach((item) => {
+    if (item.moysklad_customerorder_id === undefined) item.moysklad_customerorder_id = null;
+    if (item.moysklad_retaildemand_id === undefined) item.moysklad_retaildemand_id = null;
+    if (item.moysklad_last_error === undefined) item.moysklad_last_error = null;
+    if (item.moysklad_synced_at === undefined) item.moysklad_synced_at = null;
+  });
+
+  return snapshot;
 }
 
 async function loadStoreFromDb() {
@@ -676,17 +769,17 @@ async function loadStoreFromDb() {
       JSON.stringify(seededStore),
       nowIso(),
     ]);
-    return structuredClone(seededStore);
+    return normalizeStoreSnapshot(structuredClone(seededStore));
   }
 
   try {
-    return JSON.parse(row.data) as Store;
+    return normalizeStoreSnapshot(JSON.parse(row.data) as Store);
   } catch {
     await db.run("UPDATE app_state SET data = ?, updated_at = ? WHERE id = 1", [
       JSON.stringify(seededStore),
       nowIso(),
     ]);
-    return structuredClone(seededStore);
+    return normalizeStoreSnapshot(structuredClone(seededStore));
   }
 }
 
@@ -728,7 +821,8 @@ function isStoreSnapshot(value: unknown): value is Store {
 
 export async function restoreStoreSnapshot(snapshot: unknown) {
   if (!isStoreSnapshot(snapshot) || !globalStore.tomirStore) return false;
-  Object.assign(globalStore.tomirStore, structuredClone(snapshot));
+  const normalized = normalizeStoreSnapshot(structuredClone(snapshot));
+  Object.assign(globalStore.tomirStore, normalized);
   await persistStore();
   return true;
 }
@@ -1173,6 +1267,65 @@ export function getSettings() {
   return store.settings;
 }
 
+export function getMoyskladIntegration() {
+  store.integrations ??= {
+    moysklad: {
+      enabled: false,
+      base_url: "https://api.moysklad.ru/api/remap/1.2",
+      auth_mode: "token",
+      token_enc: null,
+      login_enc: null,
+      password_enc: null,
+      price_type_id: null,
+      price_type_name: null,
+      last_sync_at: null,
+      last_sync_error: null,
+    },
+  };
+
+  store.integrations.moysklad ??= {
+    enabled: false,
+    base_url: "https://api.moysklad.ru/api/remap/1.2",
+    auth_mode: "token",
+    token_enc: null,
+    login_enc: null,
+    password_enc: null,
+    price_type_id: null,
+    price_type_name: null,
+    last_sync_at: null,
+    last_sync_error: null,
+  };
+
+  return store.integrations.moysklad;
+}
+
+export function updateMoyskladIntegration(input: {
+  enabled?: boolean;
+  baseUrl?: string;
+  authMode?: "token" | "basic";
+  tokenEnc?: string | null;
+  loginEnc?: string | null;
+  passwordEnc?: string | null;
+  priceTypeId?: string | null;
+  priceTypeName?: string | null;
+  lastSyncAt?: string | null;
+  lastSyncError?: string | null;
+}) {
+  const integration = getMoyskladIntegration();
+  if (input.enabled !== undefined) integration.enabled = input.enabled;
+  if (input.baseUrl !== undefined) integration.base_url = input.baseUrl.trim();
+  if (input.authMode !== undefined) integration.auth_mode = input.authMode;
+  if (input.tokenEnc !== undefined) integration.token_enc = input.tokenEnc;
+  if (input.loginEnc !== undefined) integration.login_enc = input.loginEnc;
+  if (input.passwordEnc !== undefined) integration.password_enc = input.passwordEnc;
+  if (input.priceTypeId !== undefined) integration.price_type_id = input.priceTypeId;
+  if (input.priceTypeName !== undefined) integration.price_type_name = input.priceTypeName;
+  if (input.lastSyncAt !== undefined) integration.last_sync_at = input.lastSyncAt;
+  if (input.lastSyncError !== undefined) integration.last_sync_error = input.lastSyncError;
+  void persistStore();
+  return integration;
+}
+
 export function updateSettings(input: {
   cafeName: string;
   phone?: string;
@@ -1210,6 +1363,7 @@ export function createBranch(input: {
   lat?: number | null;
   lng?: number | null;
   isActive?: boolean;
+  moyskladStoreId?: string | null;
 }) {
   const now = nowIso();
   const lat = parseCoordinate(input.lat);
@@ -1223,6 +1377,7 @@ export function createBranch(input: {
     lat,
     lng,
     is_active: input.isActive === false ? 0 : 1,
+    moysklad_store_id: input.moyskladStoreId?.trim() || null,
     created_at: now,
     updated_at: now,
   };
@@ -1241,6 +1396,7 @@ export function updateBranch(
     lat?: number | null;
     lng?: number | null;
     isActive?: boolean;
+    moyskladStoreId?: string | null;
   },
 ) {
   const branch = store.branches.find((item) => item.id === branchId);
@@ -1253,6 +1409,9 @@ export function updateBranch(
   if (input.lat !== undefined) branch.lat = parseCoordinate(input.lat);
   if (input.lng !== undefined) branch.lng = parseCoordinate(input.lng);
   if (input.isActive !== undefined) branch.is_active = input.isActive ? 1 : 0;
+  if (input.moyskladStoreId !== undefined) {
+    branch.moysklad_store_id = input.moyskladStoreId?.trim() || null;
+  }
   branch.updated_at = nowIso();
   void persistStore();
   return branch;
@@ -2061,6 +2220,10 @@ export function createPublicOrder(payload: {
     completed_at: null,
     canceled_at: null,
     cancel_reason: null,
+    moysklad_customerorder_id: null,
+    moysklad_retaildemand_id: null,
+    moysklad_last_error: null,
+    moysklad_synced_at: null,
     created_at: now,
     updated_at: now,
   };

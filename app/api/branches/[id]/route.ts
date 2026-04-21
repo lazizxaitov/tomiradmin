@@ -27,6 +27,7 @@ export async function PATCH(
     lat: body?.lat !== undefined ? Number(body.lat) : undefined,
     lng: body?.lng !== undefined ? Number(body.lng) : undefined,
     isActive: body?.isActive,
+    moyskladStoreId: body?.moyskladStoreId?.toString()?.trim() ?? undefined,
   });
 
   if (!item) {

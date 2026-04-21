@@ -28,6 +28,7 @@ type PickupPoint = {
   lat: number | null;
   lng: number | null;
   is_active: number;
+  moysklad_store_id?: string | null;
 };
 
 type PickupPointForm = {
@@ -38,7 +39,22 @@ type PickupPointForm = {
   lat: string;
   lng: string;
   is_active: boolean;
+  moysklad_store_id: string;
 };
+
+type MoyskladSettings = {
+  enabled: boolean;
+  baseUrl: string;
+  authMode: "token" | "basic";
+  priceTypeId: string | null;
+  priceTypeName: string | null;
+  lastSyncAt: string | null;
+  lastSyncError: string | null;
+  hasCredentials: boolean;
+};
+
+type MoyskladPriceType = { id?: string; name?: string };
+type MoyskladStore = { id?: string; name?: string };
 
 const emptyPointForm: PickupPointForm = {
   title: "",
@@ -48,6 +64,7 @@ const emptyPointForm: PickupPointForm = {
   lat: "",
   lng: "",
   is_active: true,
+  moysklad_store_id: "",
 };
 
 export default function SettingsPage() {
@@ -77,13 +94,34 @@ export default function SettingsPage() {
   const [pointForm, setPointForm] = useState<PickupPointForm>(emptyPointForm);
   const [editingPointId, setEditingPointId] = useState<number | null>(null);
 
+  const [moy, setMoy] = useState<MoyskladSettings | null>(null);
+  const [priceTypes, setPriceTypes] = useState<MoyskladPriceType[]>([]);
+  const [moyStores, setMoyStores] = useState<MoyskladStore[]>([]);
+  const [moySaving, setMoySaving] = useState(false);
+  const [moyTesting, setMoyTesting] = useState(false);
+  const [moySyncingCatalog, setMoySyncingCatalog] = useState(false);
+  const [moySyncingCustomers, setMoySyncingCustomers] = useState(false);
+  const [moyMessage, setMoyMessage] = useState<string | null>(null);
+  const [moyToken, setMoyToken] = useState("");
+  const [moyLogin, setMoyLogin] = useState("");
+  const [moyPassword, setMoyPassword] = useState("");
+
   const load = () => {
     setLoading(true);
     setPointsLoading(true);
-    Promise.all([fetch("/api/settings"), fetch("/api/branches")])
-      .then(async ([settingsRes, pointsRes]) => {
+    Promise.all([
+      fetch("/api/settings"),
+      fetch("/api/branches"),
+      fetch("/api/moysklad/settings"),
+      fetch("/api/moysklad/price-types"),
+      fetch("/api/moysklad/stores"),
+    ])
+      .then(async ([settingsRes, pointsRes, moyRes, priceRes, storeRes]) => {
         const settingsData = await settingsRes.json();
         const pointsData = await pointsRes.json();
+        const moyData = await moyRes.json().catch(() => null);
+        const priceData = await priceRes.json().catch(() => null);
+        const storeData = await storeRes.json().catch(() => null);
         if (settingsData?.item) {
           setForm(settingsData.item);
         }
@@ -92,6 +130,11 @@ export default function SettingsPage() {
         } else {
           setPoints([]);
         }
+        if (moyData?.item) setMoy(moyData.item);
+        if (Array.isArray(priceData?.items)) setPriceTypes(priceData.items);
+        else setPriceTypes([]);
+        if (Array.isArray(storeData?.items)) setMoyStores(storeData.items);
+        else setMoyStores([]);
       })
       .finally(() => {
         setLoading(false);
@@ -178,6 +221,7 @@ export default function SettingsPage() {
       lat: point.lat !== null && point.lat !== undefined ? String(point.lat) : "",
       lng: point.lng !== null && point.lng !== undefined ? String(point.lng) : "",
       is_active: point.is_active === 1,
+      moysklad_store_id: point.moysklad_store_id ?? "",
     });
     setPointModalOpen(true);
   };
@@ -194,6 +238,7 @@ export default function SettingsPage() {
       lat: pointForm.lat.trim() ? Number(pointForm.lat) : null,
       lng: pointForm.lng.trim() ? Number(pointForm.lng) : null,
       isActive: pointForm.is_active,
+      moyskladStoreId: pointForm.moysklad_store_id.trim() || null,
     };
 
     const url = editingPointId ? `/api/branches/${editingPointId}` : "/api/branches";
@@ -213,6 +258,97 @@ export default function SettingsPage() {
   const removePoint = async (id: number) => {
     await fetch(`/api/branches/${id}`, { method: "DELETE" });
     load();
+  };
+
+  const saveMoysklad = async () => {
+    if (!moy) return;
+    setMoySaving(true);
+    setMoyMessage(null);
+
+    const payload: Record<string, unknown> = {
+      enabled: moy.enabled,
+      baseUrl: moy.baseUrl,
+      authMode: moy.authMode,
+      priceTypeId: moy.priceTypeId,
+      priceTypeName: moy.priceTypeName,
+    };
+
+    // Send secrets only if user typed something (empty means "keep current").
+    if (moy.authMode === "token" && moyToken.trim()) {
+      payload.token = moyToken.trim();
+    }
+    if (moy.authMode === "basic" && (moyLogin.trim() || moyPassword.trim())) {
+      if (moyLogin.trim()) payload.login = moyLogin.trim();
+      if (moyPassword.trim()) payload.password = moyPassword.trim();
+    }
+
+    const res = await fetch("/api/moysklad/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => null);
+
+    setMoySaving(false);
+    if (!res?.ok) {
+      setMoyMessage("Не удалось сохранить настройки МойСклад");
+      return;
+    }
+    setMoyToken("");
+    setMoyLogin("");
+    setMoyPassword("");
+    load();
+    setMoyMessage("Сохранено");
+  };
+
+  const testMoysklad = async () => {
+    setMoyTesting(true);
+    setMoyMessage(null);
+    const res = await fetch("/api/moysklad/test", { method: "POST" }).catch(() => null);
+    setMoyTesting(false);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => null);
+      setMoyMessage(data?.error?.toString() || "Ошибка подключения");
+      return;
+    }
+    setMoyMessage("Подключение работает");
+  };
+
+  const syncCatalog = async () => {
+    setMoySyncingCatalog(true);
+    setMoyMessage(null);
+    const res = await fetch("/api/moysklad/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "catalog" }),
+    }).catch(() => null);
+    setMoySyncingCatalog(false);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => null);
+      setMoyMessage(data?.error?.toString() || "Ошибка синхронизации");
+      load();
+      return;
+    }
+    load();
+    setMoyMessage("Каталог синхронизирован");
+  };
+
+  const syncCustomers = async () => {
+    setMoySyncingCustomers(true);
+    setMoyMessage(null);
+    const res = await fetch("/api/moysklad/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "customers" }),
+    }).catch(() => null);
+    setMoySyncingCustomers(false);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => null);
+      setMoyMessage(data?.error?.toString() || "Ошибка синхронизации");
+      load();
+      return;
+    }
+    load();
+    setMoyMessage("Клиенты синхронизированы");
   };
 
   return (
@@ -367,6 +503,153 @@ export default function SettingsPage() {
         </Card>
       )}
 
+      <SectionTitle title="МойСклад" subtitle="Подключение и синхронизация" />
+
+      <Card>
+        {!moy ? (
+          <p className="text-sm text-[#8d7374]">Загрузка...</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="text-sm font-semibold text-[#3c2828]">
+                Интеграция
+                <select
+                  value={moy.enabled ? "1" : "0"}
+                  onChange={(event) =>
+                    setMoy((prev) =>
+                      prev ? { ...prev, enabled: event.target.value === "1" } : prev,
+                    )
+                  }
+                  className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+                >
+                  <option value="1">Включена</option>
+                  <option value="0">Выключена</option>
+                </select>
+              </label>
+
+              <label className="text-sm font-semibold text-[#3c2828]">
+                Режим авторизации
+                <select
+                  value={moy.authMode}
+                  onChange={(event) =>
+                    setMoy((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            authMode: event.target.value === "basic" ? "basic" : "token",
+                          }
+                        : prev,
+                    )
+                  }
+                  className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+                >
+                  <option value="token">Токен</option>
+                  <option value="basic">Логин/пароль</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="text-sm font-semibold text-[#3c2828]">
+              Base URL API
+              <input
+                value={moy.baseUrl}
+                onChange={(event) =>
+                  setMoy((prev) => (prev ? { ...prev, baseUrl: event.target.value } : prev))
+                }
+                className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+              />
+            </label>
+
+            {moy.authMode === "token" ? (
+              <label className="text-sm font-semibold text-[#3c2828]">
+                Токен (оставьте пустым, чтобы не менять)
+                <input
+                  value={moyToken}
+                  onChange={(event) => setMoyToken(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+                />
+              </label>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-sm font-semibold text-[#3c2828]">
+                  Логин (пусто = не менять)
+                  <input
+                    value={moyLogin}
+                    onChange={(event) => setMoyLogin(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+                  />
+                </label>
+                <label className="text-sm font-semibold text-[#3c2828]">
+                  Пароль (пусто = не менять)
+                  <input
+                    type="password"
+                    value={moyPassword}
+                    onChange={(event) => setMoyPassword(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+                  />
+                </label>
+              </div>
+            )}
+
+            <label className="text-sm font-semibold text-[#3c2828]">
+              Тип цены
+              <select
+                value={moy.priceTypeId ?? ""}
+                onChange={(event) => {
+                  const nextId = event.target.value || null;
+                  const nextName = priceTypes.find((item) => item.id === nextId)?.name ?? null;
+                  setMoy((prev) =>
+                    prev ? { ...prev, priceTypeId: nextId, priceTypeName: nextName } : prev,
+                  );
+                }}
+                className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+              >
+                <option value="">По умолчанию</option>
+                {priceTypes.map((item) => (
+                  <option key={item.id ?? item.name} value={item.id ?? ""}>
+                    {item.name ?? "Без названия"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-[#e7e0dc] bg-white px-4 py-3 text-sm text-[#6f5b5c]">
+                <p className="font-semibold text-[#3c2828]">Ключ</p>
+                <p>{moy.hasCredentials ? "Задан" : "Не задан"}</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7e0dc] bg-white px-4 py-3 text-sm text-[#6f5b5c]">
+                <p className="font-semibold text-[#3c2828]">Последняя синхронизация</p>
+                <p>{moy.lastSyncAt ?? "Нет"}</p>
+              </div>
+              <div className="rounded-2xl border border-[#e7e0dc] bg-white px-4 py-3 text-sm text-[#6f5b5c]">
+                <p className="font-semibold text-[#3c2828]">Ошибка</p>
+                <p>{moy.lastSyncError ?? "Нет"}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <PrimaryButton onClick={saveMoysklad} disabled={moySaving}>
+                {moySaving ? "Сохраняю..." : "Сохранить"}
+              </PrimaryButton>
+              <GhostButton onClick={testMoysklad} disabled={moyTesting}>
+                {moyTesting ? "Проверяю..." : "Проверить подключение"}
+              </GhostButton>
+              <GhostButton onClick={syncCatalog} disabled={moySyncingCatalog}>
+                {moySyncingCatalog ? "Синхронизирую..." : "Синхронизировать каталог"}
+              </GhostButton>
+              <GhostButton onClick={syncCustomers} disabled={moySyncingCustomers}>
+                {moySyncingCustomers ? "Синхронизирую..." : "Синхронизировать клиентов"}
+              </GhostButton>
+            </div>
+
+            {moyMessage ? (
+              <p className="text-sm font-semibold text-[#8d7374]">{moyMessage}</p>
+            ) : null}
+          </div>
+        )}
+      </Card>
+
       <SectionTitle
         title="Точки самовывоза"
         subtitle="Адреса самовывоза"
@@ -392,6 +675,13 @@ export default function SettingsPage() {
                   <div>
                     <p className="text-base font-bold text-[#3c2828]">{point.title}</p>
                     <p className="text-sm text-[#8d7374]">{point.address}</p>
+                    {point.moysklad_store_id ? (
+                      <p className="text-xs text-[#9a7f80]">
+                        Склад:{" "}
+                        {moyStores.find((item) => item.id === point.moysklad_store_id)?.name ??
+                          point.moysklad_store_id}
+                      </p>
+                    ) : null}
                   </div>
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -489,6 +779,25 @@ export default function SettingsPage() {
             >
               <option value="1">Да</option>
               <option value="0">Нет</option>
+            </select>
+          </label>
+        </div>
+        <div className="mt-4">
+          <label className="text-sm font-semibold text-[#3c2828]">
+            Склад МойСклад
+            <select
+              value={pointForm.moysklad_store_id}
+              onChange={(event) =>
+                setPointForm((prev) => ({ ...prev, moysklad_store_id: event.target.value }))
+              }
+              className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+            >
+              <option value="">Не выбран</option>
+              {moyStores.map((item) => (
+                <option key={item.id ?? item.name} value={item.id ?? ""}>
+                  {item.name ?? "Без названия"}
+                </option>
+              ))}
             </select>
           </label>
         </div>
