@@ -6,6 +6,8 @@ import {
   updateMoyskladIntegration,
 } from "@/app/lib/data-store";
 import { decryptSecret, encryptSecret } from "@/app/lib/secret";
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 
 type MoyskladListResponse<T> = {
   meta?: { size?: number; offset?: number; limit?: number };
@@ -137,6 +139,30 @@ async function fetchAll<T>(pathName: string, params?: Record<string, string>) {
   }
 
   return rows;
+}
+
+async function downloadImageToUploads(downloadHref: string, suggestedName: string) {
+  const auth = requireAuth();
+  // First request returns 302 with Location. Location can be fetched without auth (short-lived).
+  const first = await fetch(downloadHref, {
+    headers: { Authorization: auth, Accept: "application/json;charset=utf-8" },
+    redirect: "manual",
+    cache: "no-store",
+  });
+  const location = first.headers.get("location")?.trim() || "";
+  if (!location) throw new Error("Не удалось получить ссылку на изображение");
+
+  const imgRes = await fetch(location, { cache: "no-store" });
+  if (!imgRes.ok) throw new Error(`Не удалось скачать изображение (${imgRes.status})`);
+  const buffer = Buffer.from(await imgRes.arrayBuffer());
+
+  const safeName = suggestedName.replace(/[^a-z0-9_.-]/gi, "_").slice(0, 120) || "image";
+  const uploadsDir = path.join(process.cwd(), "public", "uploads", "moysklad");
+  mkdirSync(uploadsDir, { recursive: true });
+  const fileName = `${Date.now()}-${safeName}`;
+  const fullPath = path.join(uploadsDir, fileName);
+  writeFileSync(fullPath, buffer);
+  return `/uploads/moysklad/${fileName}`;
 }
 
 export async function testMoyskladConnection() {
@@ -300,6 +326,37 @@ export async function syncMoyskladCatalog() {
   const validProductIds = new Set<number>(productsMapped.map((p: any) => Number(p.id)));
   store.product_images = store.product_images.filter((img: any) => validProductIds.has(Number(img.product_id)));
   store.portion_options = [];
+
+  // Pull product images from MoySklad only if product has no local images yet.
+  // We download images into /public/uploads so the mobile app can display them reliably.
+  for (const product of productsMapped as any[]) {
+    const productId = Number(product.id);
+    const moyId = product?.moysklad_id ? String(product.moysklad_id) : "";
+    if (!moyId) continue;
+    const current = store.product_images.filter((img: any) => Number(img.product_id) === productId);
+    if (current.length) continue;
+
+    try {
+      const images = await moyskladFetch<MoyskladListResponse<any>>(
+        `/entity/product/${encodeURIComponent(moyId)}/images?limit=1`,
+      );
+      const row = images.rows?.[0];
+      const downloadHref = row?.meta?.downloadHref?.toString?.() ?? "";
+      const filename = row?.filename?.toString?.() ?? "image.png";
+      if (!downloadHref) continue;
+      const url = await downloadImageToUploads(downloadHref, filename);
+      const nextImgId =
+        store.product_images.reduce((max: number, item: any) => Math.max(max, Number(item?.id ?? 0)), 0) + 1;
+      store.product_images.push({
+        id: nextImgId,
+        product_id: productId,
+        url,
+        sort_order: 0,
+      });
+    } catch {
+      // Ignore image errors; catalog sync should still work.
+    }
+  }
 
   // Keep existing branch list, only attempt to auto-map by name if empty.
   store.branches.forEach((branch) => {
