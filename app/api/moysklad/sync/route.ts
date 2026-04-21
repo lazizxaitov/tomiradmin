@@ -13,6 +13,7 @@ type SyncJob = {
   startedAt: string;
   finishedAt: string | null;
   lastError: string | null;
+  progress: { stage: string; processed: number; total: number | null } | null;
 };
 
 let job: SyncJob | null = null;
@@ -35,6 +36,7 @@ function startJob(input: { mode: "catalog" | "customers"; forceImages: boolean }
     startedAt: nowIso(),
     finishedAt: null,
     lastError: null,
+    progress: { stage: input.mode, processed: 0, total: null },
   };
 
   // Persist "started" so UI can show last sync immediately.
@@ -46,7 +48,13 @@ function startJob(input: { mode: "catalog" | "customers"; forceImages: boolean }
       if (input.mode === "customers") {
         await syncMoyskladCustomers();
       } else {
-        await syncMoyskladCatalog({ forceImages: input.forceImages });
+        await syncMoyskladCatalog({
+          forceImages: input.forceImages,
+          onProgress: (progress) => {
+            if (!job) return;
+            job.progress = progress;
+          },
+        });
       }
       updateMoyskladIntegration({ lastSyncAt: nowIso(), lastSyncError: null });
     } catch (error) {
@@ -77,6 +85,7 @@ export async function GET() {
           startedAt: job.startedAt,
           finishedAt: job.finishedAt,
           lastError: job.lastError,
+          progress: job.progress,
         }
       : null,
   });
@@ -103,6 +112,7 @@ export async function POST(request: Request) {
       startedAt: current.startedAt,
       finishedAt: current.finishedAt,
       lastError: current.lastError,
+      progress: current.progress,
     },
   });
 }

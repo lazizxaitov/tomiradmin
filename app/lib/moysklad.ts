@@ -258,7 +258,10 @@ function slugify(value: string) {
     .replace(/^-|-$/g, "");
 }
 
-export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
+export async function syncMoyskladCatalog(options?: {
+  forceImages?: boolean;
+  onProgress?: (progress: { stage: string; processed: number; total: number | null }) => void;
+}) {
   const integration = getMoyskladIntegration();
   if (!integration.enabled) throw new Error("РРЅС‚РµРіСЂР°С†РёСЏ РњРѕР№РЎРєР»Р°Рґ РІС‹РєР»СЋС‡РµРЅР°");
   requireAuth();
@@ -339,11 +342,13 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
   const nonMoyProducts = (store.products as any[]).filter((p: any) => !p?.moysklad_id);
 
   // Some fields (like productFolder) are not filterable in MoySklad. Instead, sync in pages and persist after each page.
+  let processed = 0;
   for await (const page of fetchPages<any>("/entity/product")) {
-    for (const product of page) {
+    for (const product of page.rows) {
       const moyId = product?.id ? String(product.id) : "";
       if (!moyId) continue;
       seenMoyProductIds.add(moyId);
+      processed += 1;
 
       const existing = mergedByMoyId.get(moyId) ?? existingProductsByMoyId.get(moyId) ?? null;
       const id = existing?.id ? Number(existing.id) : nextProductId++;
@@ -387,6 +392,11 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
 
     store.products = [...nonMoyProducts, ...Array.from(mergedByMoyId.values())] as any;
     await persistStore();
+    options?.onProgress?.({
+      stage: "products",
+      processed,
+      total: Number.isFinite(page.total) ? page.total : null,
+    });
   }
 
   // Drop MoySklad products that no longer exist.
@@ -478,10 +488,13 @@ async function* fetchPages<T>(pathName: string, params?: Record<string, string>)
     });
     const response = await moyskladFetch<MoyskladListResponse<T>>(`${pathName}?${query}`);
     const batch = response.rows ?? [];
-    yield batch;
 
     total = response.meta?.size ?? (offset + batch.length);
-    offset += response.meta?.limit ?? limit;
+    const nextOffset = offset + (response.meta?.limit ?? limit);
+
+    yield { rows: batch, offset, total, limit };
+
+    offset = nextOffset;
     if (offset >= total || batch.length === 0) break;
   }
 }

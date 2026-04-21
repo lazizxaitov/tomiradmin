@@ -337,6 +337,15 @@ export default function SettingsPage() {
       const data = await status?.json().catch(() => null);
       const running = Boolean(data?.job?.running);
       const lastError = data?.job?.lastError?.toString?.() ?? null;
+      const progress = data?.job?.progress ?? null;
+      if (running && progress && typeof progress.processed === "number") {
+        const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        setMoyMessage(
+          total
+            ? `Синхронизация... ${progress.processed}/${total}`
+            : `Синхронизация... ${progress.processed}`,
+        );
+      }
       if (!running) {
         setMoySyncingCatalog(false);
         load();
@@ -377,6 +386,15 @@ export default function SettingsPage() {
       const data = await status?.json().catch(() => null);
       const running = Boolean(data?.job?.running);
       const lastError = data?.job?.lastError?.toString?.() ?? null;
+      const progress = data?.job?.progress ?? null;
+      if (running && progress && typeof progress.processed === "number") {
+        const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        setMoyMessage(
+          total
+            ? `Обновление фото... ${progress.processed}/${total}`
+            : `Обновление фото... ${progress.processed}`,
+        );
+      }
       if (!running) {
         setMoySyncingCatalog(false);
         load();
@@ -417,6 +435,15 @@ export default function SettingsPage() {
       const data = await status?.json().catch(() => null);
       const running = Boolean(data?.job?.running);
       const lastError = data?.job?.lastError?.toString?.() ?? null;
+      const progress = data?.job?.progress ?? null;
+      if (running && progress && typeof progress.processed === "number") {
+        const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        setMoyMessage(
+          total
+            ? `Синхронизация... ${progress.processed}/${total}`
+            : `Синхронизация... ${progress.processed}`,
+        );
+      }
       if (!running) {
         setMoySyncingCustomers(false);
         load();
