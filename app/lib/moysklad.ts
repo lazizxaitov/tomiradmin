@@ -106,11 +106,15 @@ async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
   // Retry a few times with small delay to make sync more robust for big accounts.
   const maxAttempts = 3;
   let lastError: unknown = null;
+  const timeoutMs = 120_000;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       const response = await fetch(url, {
         ...init,
+        signal: init?.signal ?? controller.signal,
         headers: {
           "Accept-Encoding": "gzip",
           Accept: "application/json;charset=utf-8",
@@ -119,7 +123,7 @@ async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
           Authorization: auth,
         },
         cache: "no-store",
-      });
+      }).finally(() => clearTimeout(timer));
 
       if (!response.ok) {
         const text = await response.text().catch(() => "");
@@ -138,11 +142,16 @@ async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
         causeCode || causeMessage ? ` (cause: ${causeCode ?? ""}${causeCode && causeMessage ? " " : ""}${causeMessage ?? ""})` : "";
 
       const message = `${baseMessage}${diagnostic}`;
-      const retryable = baseMessage.toLowerCase().includes("terminated") || baseMessage.toLowerCase().includes("fetch failed");
+      const lower = baseMessage.toLowerCase();
+      const retryable =
+        lower.includes("terminated") ||
+        lower.includes("fetch failed") ||
+        lower.includes("etimedout") ||
+        String(causeCode ?? "").toLowerCase().includes("etimedout");
       if (!retryable || attempt === maxAttempts) {
         throw new Error(`MoySklad request failed: ${message}`);
       }
-      await new Promise((r) => setTimeout(r, 250 * attempt));
+      await new Promise((r) => setTimeout(r, 700 * attempt));
     }
   }
 
