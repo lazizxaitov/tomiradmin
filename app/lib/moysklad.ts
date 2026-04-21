@@ -411,11 +411,24 @@ export async function syncMoyskladCatalog(options?: {
   store.product_images = store.product_images.filter((img: any) => validProductIds.has(Number(img.product_id)));
   store.portion_options = [];
   const forceImages = Boolean(options?.forceImages);
+
+  const imageTargets = (store.products as any[]).filter((product: any) => {
+    const productId = Number(product?.id ?? 0);
+    const moyId = product?.moysklad_id ? String(product.moysklad_id) : "";
+    if (!productId || !moyId) return false;
+    const current = store.product_images.filter((img: any) => Number(img.product_id) === productId);
+    const hasAny = current.length > 0;
+    const hasMoysklad = current.some((img: any) => String(img.url ?? "").startsWith("/uploads/moysklad/"));
+    if (hasAny && !(forceImages && hasMoysklad)) return false;
+    return true;
+  });
+
+  let imagesProcessed = 0;
   // Pull product images from MoySklad:
   // - if product has no local images yet
   // - or if forced (re-download + crop), but only for images previously downloaded from MoySklad.
   // We download images into /public/uploads so the mobile app can display them reliably.
-  for (const product of store.products as any[]) {
+  for (const product of imageTargets) {
     const productId = Number(product.id);
     const moyId = product?.moysklad_id ? String(product.moysklad_id) : "";
     if (!moyId) continue;
@@ -449,6 +462,15 @@ export async function syncMoyskladCatalog(options?: {
       });
     } catch {
       // Ignore image errors; catalog sync should still work.
+    }
+
+    imagesProcessed += 1;
+    if (forceImages) {
+      options?.onProgress?.({
+        stage: "images",
+        processed: imagesProcessed,
+        total: imageTargets.length,
+      });
     }
   }
 
