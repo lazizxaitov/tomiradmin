@@ -296,7 +296,14 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-6">
-      <SectionTitle title="Товары" subtitle="Список товаров" />
+      <SectionTitle
+        title="Товары"
+        subtitle={
+          search.trim()
+            ? `Показано: ${filteredItems.length} из ${items.length}`
+            : `Всего товаров: ${items.length}`
+        }
+      />
       <Card className="flex flex-wrap items-center justify-between gap-3">
         <input
           className="w-full max-w-md rounded-2xl border border-[#dce4ec] bg-white px-4 py-2 text-sm"
