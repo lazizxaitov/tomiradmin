@@ -196,6 +196,13 @@ type Store = {
   cashier_accounts: CashierAccount[];
   orders: Order[];
   order_items: OrderItem[];
+  stock_adjustments?: Array<{
+    id: number;
+    branch_id: number;
+    product_id: number;
+    delta: number; // negative for sold, positive for restock
+    created_at: string;
+  }>;
   integrations?: {
     moysklad: {
       enabled: boolean;
@@ -687,6 +694,7 @@ const seededStore: Store = {
   cashier_accounts: structuredClone(cashierAccountsSeed),
   orders: structuredClone(ordersSeed),
   order_items: structuredClone(orderItemsSeed),
+  stock_adjustments: [],
   integrations: {
     moysklad: {
       enabled: false,
@@ -748,6 +756,8 @@ function normalizeStoreSnapshot(snapshot: Store) {
     if (item.moysklad_last_error === undefined) item.moysklad_last_error = null;
     if (item.moysklad_synced_at === undefined) item.moysklad_synced_at = null;
   });
+
+  snapshot.stock_adjustments ??= [];
 
   return snapshot;
 }
@@ -831,6 +841,50 @@ export const store = await initStore();
 
 function nextId<T extends { id: number }>(items: T[]) {
   return items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+}
+
+export function addStockAdjustment(input: { branchId: number; productId: number; delta: number }) {
+  const delta = Math.trunc(Number(input.delta ?? 0));
+  if (!delta) return null;
+  const branchId = Number(input.branchId);
+  const productId = Number(input.productId);
+  if (!branchId || !productId) return null;
+
+  const now = nowIso();
+  store.stock_adjustments ??= [];
+  const id = nextId(store.stock_adjustments);
+  store.stock_adjustments.push({
+    id,
+    branch_id: branchId,
+    product_id: productId,
+    delta,
+    created_at: now,
+  });
+  void persistStore();
+  return id;
+}
+
+export function sumStockAdjustments(options: { storeId?: string | null; branchId?: number | null; productId?: number }) {
+  const productId = options.productId ? Number(options.productId) : null;
+  const branchIds: number[] = [];
+
+  if (options.branchId) branchIds.push(Number(options.branchId));
+  if (!branchIds.length && options.storeId) {
+    const storeId = options.storeId.trim();
+    store.branches.forEach((branch) => {
+      if (branch.moysklad_store_id && branch.moysklad_store_id === storeId) {
+        branchIds.push(branch.id);
+      }
+    });
+  }
+
+  if (!branchIds.length) return 0;
+  const set = new Set(branchIds);
+  return (store.stock_adjustments ?? []).reduce((sum, row) => {
+    if (!set.has(row.branch_id)) return sum;
+    if (productId && row.product_id !== productId) return sum;
+    return sum + Number(row.delta ?? 0);
+  }, 0);
 }
 
 function resolveBranchIdByGeo(lat?: number | null, lng?: number | null) {
@@ -2243,6 +2297,15 @@ export function createPublicOrder(payload: {
       quantity,
       total: price * quantity,
     });
+  });
+
+  // Decrease local branch stock immediately so the "Остатки" window reflects mobile sales.
+  items.forEach((item) => {
+    const productId = item.productId ? Number(item.productId) : 0;
+    const quantity = Math.max(0, Math.trunc(Number(item.quantity ?? 0)));
+    if (productId && quantity) {
+      addStockAdjustment({ branchId, productId, delta: -quantity });
+    }
   });
 
   void persistStore();

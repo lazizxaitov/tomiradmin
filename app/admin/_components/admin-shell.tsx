@@ -12,6 +12,7 @@ const navItems = [
   { href: "/admin/branches", label: "Заведения" },
   { href: "/admin/banners", label: "Баннеры" },
   { href: "/admin/cashiers", label: "Кассы" },
+  { href: "/admin/stocks", label: "Остатки" },
   { href: "/admin/couriers", label: "Доставщики" },
   { href: "/admin/clients", label: "Клиенты" },
   { href: "/admin/all-orders", label: "Заказы" },
