@@ -154,15 +154,34 @@ async function downloadImageToUploads(downloadHref: string, suggestedName: strin
 
   const imgRes = await fetch(location, { cache: "no-store" });
   if (!imgRes.ok) throw new Error(`Не удалось скачать изображение (${imgRes.status})`);
-  const buffer = Buffer.from(await imgRes.arrayBuffer());
+  const original = Buffer.from(await imgRes.arrayBuffer());
+  const buffer = await toSquareJpegIfPossible(original).catch(() => original);
 
-  const safeName = suggestedName.replace(/[^a-z0-9_.-]/gi, "_").slice(0, 120) || "image";
+  const safeNameBase = suggestedName.replace(/[^a-z0-9_.-]/gi, "_").slice(0, 120) || "image";
   const uploadsDir = path.join(process.cwd(), "public", "uploads", "moysklad");
   mkdirSync(uploadsDir, { recursive: true });
-  const fileName = `${Date.now()}-${safeName}`;
+  const fileName = `${Date.now()}-${safeNameBase.replace(/\.(png|jpe?g|webp|gif)$/i, "")}.jpg`;
   const fullPath = path.join(uploadsDir, fileName);
   writeFileSync(fullPath, buffer);
   return `/uploads/moysklad/${fileName}`;
+}
+
+async function toSquareJpegIfPossible(input: Buffer) {
+  // Optional dependency. If not installed, keep original bytes.
+  // Making square images avoids "vertical squeeze" when the mobile UI uses fill/forced aspect ratio.
+  const mod = (await import("jimp").catch(() => null)) as any;
+  const Jimp = mod?.Jimp ?? mod;
+  if (!Jimp?.read) return input;
+
+  const image = await Jimp.read(input);
+  const size = Math.min(image.bitmap.width, image.bitmap.height);
+  // Center-crop to square, then upscale/downscale to a predictable size.
+  const x = Math.max(0, Math.floor((image.bitmap.width - size) / 2));
+  const y = Math.max(0, Math.floor((image.bitmap.height - size) / 2));
+  image.crop(x, y, size, size);
+  image.resize(1200, 1200);
+  image.quality(82);
+  return Buffer.from(await image.getBufferAsync("image/jpeg"));
 }
 
 export async function testMoyskladConnection() {
