@@ -8,6 +8,7 @@ import {
 import { decryptSecret, encryptSecret } from "@/app/lib/secret";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { Agent } from "undici";
 
 type MoyskladListResponse<T> = {
   meta?: { size?: number; offset?: number; limit?: number };
@@ -15,6 +16,14 @@ type MoyskladListResponse<T> = {
 };
 
 type MoyskladMeta = { href?: string; type?: string; mediaType?: string };
+
+// Large MoySklad accounts can have very slow responses. Increase undici timeouts
+// to avoid spurious ETIMEDOUT while reading response body.
+const MOYSKLAD_DISPATCHER = new Agent({
+  connectTimeout: 60_000,
+  headersTimeout: 300_000,
+  bodyTimeout: 300_000,
+});
 
 function nowIso() {
   return new Date().toISOString();
@@ -115,6 +124,8 @@ async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
       const response = await fetch(url, {
         ...init,
         signal: init?.signal ?? controller.signal,
+        // Increase low-level HTTP timeouts for big accounts.
+        dispatcher: MOYSKLAD_DISPATCHER as any,
         headers: {
           "Accept-Encoding": "gzip",
           Accept: "application/json;charset=utf-8",
