@@ -106,6 +106,34 @@ export default function SettingsPage() {
   const [moyLogin, setMoyLogin] = useState("");
   const [moyPassword, setMoyPassword] = useState("");
 
+  // Re-attach to a running sync job after refresh/navigation.
+  const pollMoySync = (label: string, timeoutMs: number, onDone: (message: string) => void) => {
+    const startedAt = Date.now();
+    const poll = async () => {
+      const status = await fetch("/api/moysklad/sync", { cache: "no-store" }).catch(() => null);
+      const data = await status?.json().catch(() => null);
+      const running = Boolean(data?.job?.running);
+      const lastError = data?.job?.lastError?.toString?.() ?? null;
+      const progress = data?.job?.progress ?? null;
+      if (running && progress && typeof progress.processed === "number") {
+        const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        setMoyMessage(total ? `${label}... ${progress.processed}/${total}` : `${label}... ${progress.processed}`);
+      }
+      if (!running) {
+        load();
+        onDone(lastError ? lastError : `${label} завершена`);
+        return;
+      }
+      if (Date.now() - startedAt > timeoutMs) {
+        load();
+        onDone(`${label} выполняется слишком долго. Проверьте позже.`);
+        return;
+      }
+      setTimeout(poll, 2000);
+    };
+    setTimeout(poll, 1200);
+  };
+
   const load = () => {
     setLoading(true);
     setPointsLoading(true);
@@ -145,6 +173,31 @@ export default function SettingsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
+
+    // If a sync is already running, re-attach the UI indicator.
+    fetch("/api/moysklad/sync", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.job?.running) return;
+        const mode = data?.job?.mode?.toString?.() ?? "catalog";
+        if (mode === "customers") {
+          setMoySyncingCustomers(true);
+          setMoyMessage("Синхронизация клиентов запущена...");
+          pollMoySync("Синхронизация клиентов", 15 * 60 * 1000, (msg) => {
+            setMoySyncingCustomers(false);
+            setMoyMessage(msg === "Синхронизация клиентов завершена" ? "Клиенты синхронизированы" : msg);
+          });
+          return;
+        }
+
+        setMoySyncingCatalog(true);
+        setMoyMessage("Синхронизация запущена...");
+        pollMoySync("Синхронизация", 15 * 60 * 1000, (msg) => {
+          setMoySyncingCatalog(false);
+          setMoyMessage(msg === "Синхронизация завершена" ? "Каталог синхронизирован" : msg);
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const save = async () => {
