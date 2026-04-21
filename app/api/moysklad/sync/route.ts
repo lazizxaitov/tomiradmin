@@ -14,6 +14,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const mode = body?.mode?.toString()?.trim() || "catalog";
+  const forceImages = Boolean(body?.forceImages);
 
   try {
     if (mode === "customers") {
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ mode, result });
     }
 
-    const result = await syncMoyskladCatalog();
+    const result = await syncMoyskladCatalog({ forceImages });
     return NextResponse.json({ mode: "catalog", result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sync failed";

@@ -332,6 +332,25 @@ export default function SettingsPage() {
     setMoyMessage("Каталог синхронизирован");
   };
 
+  const refreshMoyskladImages = async () => {
+    setMoySyncingCatalog(true);
+    setMoyMessage(null);
+    const res = await fetch("/api/moysklad/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "catalog", forceImages: true }),
+    }).catch(() => null);
+    setMoySyncingCatalog(false);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => null);
+      setMoyMessage(data?.error?.toString() || "Ошибка обновления фото");
+      load();
+      return;
+    }
+    load();
+    setMoyMessage("Фото обновлены");
+  };
+
   const syncCustomers = async () => {
     setMoySyncingCustomers(true);
     setMoyMessage(null);
@@ -637,6 +656,9 @@ export default function SettingsPage() {
               </GhostButton>
               <GhostButton onClick={syncCatalog} disabled={moySyncingCatalog}>
                 {moySyncingCatalog ? "Синхронизирую..." : "Синхронизировать каталог"}
+              </GhostButton>
+              <GhostButton onClick={refreshMoyskladImages} disabled={moySyncingCatalog}>
+                {moySyncingCatalog ? "Синхронизирую..." : "Обновить фото"}
               </GhostButton>
               <GhostButton onClick={syncCustomers} disabled={moySyncingCustomers}>
                 {moySyncingCustomers ? "Синхронизирую..." : "Синхронизировать клиентов"}

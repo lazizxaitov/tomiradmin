@@ -217,7 +217,7 @@ function slugify(value: string) {
     .replace(/^-|-$/g, "");
 }
 
-export async function syncMoyskladCatalog() {
+export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
   const integration = getMoyskladIntegration();
   if (!integration.enabled) throw new Error("Интеграция МойСклад выключена");
   requireAuth();
@@ -350,14 +350,25 @@ export async function syncMoyskladCatalog() {
   store.product_images = store.product_images.filter((img: any) => validProductIds.has(Number(img.product_id)));
   store.portion_options = [];
 
-  // Pull product images from MoySklad only if product has no local images yet.
+  const forceImages = Boolean(options?.forceImages);
+  // Pull product images from MoySklad:
+  // - if product has no local images yet
+  // - or if forced (re-download + crop), but only for images previously downloaded from MoySklad.
   // We download images into /public/uploads so the mobile app can display them reliably.
   for (const product of productsMapped as any[]) {
     const productId = Number(product.id);
     const moyId = product?.moysklad_id ? String(product.moysklad_id) : "";
     if (!moyId) continue;
     const current = store.product_images.filter((img: any) => Number(img.product_id) === productId);
-    if (current.length) continue;
+    const hasAny = current.length > 0;
+    const hasMoysklad = current.some((img: any) => String(img.url ?? "").startsWith("/uploads/moysklad/"));
+    if (hasAny && !(forceImages && hasMoysklad)) continue;
+    if (forceImages && hasMoysklad) {
+      store.product_images = store.product_images.filter(
+        (img: any) =>
+          !(Number(img.product_id) === productId && String(img.url ?? "").startsWith("/uploads/moysklad/")),
+      );
+    }
 
     try {
       const images = await moyskladFetch<MoyskladListResponse<any>>(
