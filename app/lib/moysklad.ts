@@ -93,6 +93,11 @@ function buildMeta(type: string, id: string) {
   };
 }
 
+function refMeta(type: string, id: string) {
+  // MoySklad expects references in the form { meta: { href, type, mediaType } } for most fields.
+  return { meta: buildMeta(type, id) };
+}
+
 async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
   const auth = requireAuth();
   const url = pathName.startsWith("http") ? pathName : `${baseUrl()}${pathName}`;
@@ -532,7 +537,7 @@ export async function sendOrderToMoysklad(orderId: number) {
       return {
         quantity: item.quantity,
         price: Math.round(item.price * 100),
-        assortment: buildMeta("product", product.moysklad_id),
+        assortment: refMeta("product", product.moysklad_id),
       };
     })
     .filter(Boolean);
@@ -542,14 +547,14 @@ export async function sendOrderToMoysklad(orderId: number) {
   const payload: Record<string, unknown> = {
     name: `Заказ #${order.id}`,
     externalCode: `tomir-order-${order.id}`,
-    organization,
-    agent: buildMeta("counterparty", counterpartyId),
+    organization: { meta: organization },
+    agent: refMeta("counterparty", counterpartyId),
     positions,
     // Only "applicable" documents affect stock in MoySklad.
     applicable: true,
     description: order.comment || undefined,
   };
-  if (storeMeta) payload.store = storeMeta;
+  if (storeMeta?.href) payload.store = { meta: storeMeta };
 
   const created = await moyskladFetch<any>("/entity/customerorder", {
     method: "POST",
@@ -609,7 +614,7 @@ export async function sendRetailDemandToMoysklad(orderId: number) {
       return {
         quantity: item.quantity,
         price: Math.round(item.price * 100),
-        assortment: buildMeta("product", product.moysklad_id),
+        assortment: refMeta("product", product.moysklad_id),
       };
     })
     .filter(Boolean);
@@ -619,14 +624,14 @@ export async function sendRetailDemandToMoysklad(orderId: number) {
   const payload: Record<string, unknown> = {
     name: `Продажа #${order.id}`,
     externalCode: `tomir-sale-${order.id}`,
-    organization,
-    agent: buildMeta("counterparty", counterpartyId),
+    organization: { meta: organization },
+    agent: refMeta("counterparty", counterpartyId),
     positions,
     // Only "applicable" documents affect stock in MoySklad.
     applicable: true,
     description: order.comment || undefined,
   };
-  if (storeMeta) payload.store = storeMeta;
+  if (storeMeta?.href) payload.store = { meta: storeMeta };
 
   const created = await moyskladFetch<any>("/entity/demand", {
     method: "POST",
