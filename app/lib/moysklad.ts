@@ -130,9 +130,18 @@ async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
       return (await response.json()) as T;
     } catch (error) {
       lastError = error;
-      const message = error instanceof Error ? error.message : String(error);
-      const retryable = message.toLowerCase().includes("terminated");
-      if (!retryable || attempt === maxAttempts) throw error;
+      const baseMessage = error instanceof Error ? error.message : String(error);
+      const cause = (error as any)?.cause;
+      const causeCode = typeof cause?.code === "string" ? cause.code : null;
+      const causeMessage = typeof cause?.message === "string" ? cause.message : null;
+      const diagnostic =
+        causeCode || causeMessage ? ` (cause: ${causeCode ?? ""}${causeCode && causeMessage ? " " : ""}${causeMessage ?? ""})` : "";
+
+      const message = `${baseMessage}${diagnostic}`;
+      const retryable = baseMessage.toLowerCase().includes("terminated") || baseMessage.toLowerCase().includes("fetch failed");
+      if (!retryable || attempt === maxAttempts) {
+        throw new Error(`MoySklad request failed: ${message}`);
+      }
       await new Promise((r) => setTimeout(r, 250 * attempt));
     }
   }
