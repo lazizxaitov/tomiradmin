@@ -321,15 +321,37 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "catalog" }),
     }).catch(() => null);
-    setMoySyncingCatalog(false);
     if (!res?.ok) {
+      setMoySyncingCatalog(false);
       const data = await res?.json().catch(() => null);
       setMoyMessage(data?.error?.toString() || "Ошибка синхронизации");
       load();
       return;
     }
-    load();
-    setMoyMessage("Каталог синхронизирован");
+
+    // Sync runs in background to avoid timeouts.
+    setMoyMessage("Синхронизация запущена...");
+    const startedAt = Date.now();
+    const poll = async () => {
+      const status = await fetch("/api/moysklad/sync", { cache: "no-store" }).catch(() => null);
+      const data = await status?.json().catch(() => null);
+      const running = Boolean(data?.job?.running);
+      const lastError = data?.job?.lastError?.toString?.() ?? null;
+      if (!running) {
+        setMoySyncingCatalog(false);
+        load();
+        setMoyMessage(lastError ? lastError : "Каталог синхронизирован");
+        return;
+      }
+      if (Date.now() - startedAt > 15 * 60 * 1000) {
+        setMoySyncingCatalog(false);
+        load();
+        setMoyMessage("Синхронизация выполняется слишком долго. Проверьте позже.");
+        return;
+      }
+      setTimeout(poll, 2000);
+    };
+    setTimeout(poll, 1200);
   };
 
   const refreshMoyskladImages = async () => {
@@ -340,15 +362,36 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "catalog", forceImages: true }),
     }).catch(() => null);
-    setMoySyncingCatalog(false);
     if (!res?.ok) {
+      setMoySyncingCatalog(false);
       const data = await res?.json().catch(() => null);
       setMoyMessage(data?.error?.toString() || "Ошибка обновления фото");
       load();
       return;
     }
-    load();
-    setMoyMessage("Фото обновлены");
+
+    setMoyMessage("Обновление фото запущено...");
+    const startedAt = Date.now();
+    const poll = async () => {
+      const status = await fetch("/api/moysklad/sync", { cache: "no-store" }).catch(() => null);
+      const data = await status?.json().catch(() => null);
+      const running = Boolean(data?.job?.running);
+      const lastError = data?.job?.lastError?.toString?.() ?? null;
+      if (!running) {
+        setMoySyncingCatalog(false);
+        load();
+        setMoyMessage(lastError ? lastError : "Фото обновлены");
+        return;
+      }
+      if (Date.now() - startedAt > 20 * 60 * 1000) {
+        setMoySyncingCatalog(false);
+        load();
+        setMoyMessage("Обновление фото выполняется слишком долго. Проверьте позже.");
+        return;
+      }
+      setTimeout(poll, 2000);
+    };
+    setTimeout(poll, 1200);
   };
 
   const syncCustomers = async () => {
@@ -359,15 +402,36 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "customers" }),
     }).catch(() => null);
-    setMoySyncingCustomers(false);
     if (!res?.ok) {
+      setMoySyncingCustomers(false);
       const data = await res?.json().catch(() => null);
       setMoyMessage(data?.error?.toString() || "Ошибка синхронизации");
       load();
       return;
     }
-    load();
-    setMoyMessage("Клиенты синхронизированы");
+
+    setMoyMessage("Синхронизация клиентов запущена...");
+    const startedAt = Date.now();
+    const poll = async () => {
+      const status = await fetch("/api/moysklad/sync", { cache: "no-store" }).catch(() => null);
+      const data = await status?.json().catch(() => null);
+      const running = Boolean(data?.job?.running);
+      const lastError = data?.job?.lastError?.toString?.() ?? null;
+      if (!running) {
+        setMoySyncingCustomers(false);
+        load();
+        setMoyMessage(lastError ? lastError : "Клиенты синхронизированы");
+        return;
+      }
+      if (Date.now() - startedAt > 15 * 60 * 1000) {
+        setMoySyncingCustomers(false);
+        load();
+        setMoyMessage("Синхронизация выполняется слишком долго. Проверьте позже.");
+        return;
+      }
+      setTimeout(poll, 2000);
+    };
+    setTimeout(poll, 1200);
   };
 
   return (
