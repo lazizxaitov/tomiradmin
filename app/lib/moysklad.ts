@@ -99,8 +99,8 @@ async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
     ...init,
     headers: {
       "Accept-Encoding": "gzip",
-      Accept: "application/json",
-      "Content-Type": "application/json",
+      Accept: "application/json;charset=utf-8",
+      "Content-Type": "application/json;charset=utf-8",
       ...(init?.headers ?? {}),
       Authorization: auth,
     },
@@ -144,7 +144,7 @@ export async function testMoyskladConnection() {
   if (!auth) throw new Error("Не задан токен/логин/пароль МойСклад");
   const url = `${baseUrl()}/entity/store?limit=1`;
   const response = await fetch(url, {
-    headers: { Authorization: auth, Accept: "application/json" },
+    headers: { Authorization: auth, Accept: "application/json;charset=utf-8" },
     cache: "no-store",
   });
   if (!response.ok) {
