@@ -224,7 +224,8 @@ export async function syncMoyskladCatalog() {
     fetchAll<any>("/entity/product", { expand: "salePrices.priceType" }),
     fetchAll<any>("/entity/store"),
     listMoyskladPriceTypes(),
-    moyskladFetch<any>("/report/stock/bystore/current?stockType=freeStock"),
+    // Global free stock, simpler than by-store report for the admin catalog.
+    moyskladFetch<any>("/report/stock/all/current?stockType=freeStock"),
   ]);
 
   let priceTypeId = integration.price_type_id;
@@ -246,7 +247,7 @@ export async function syncMoyskladCatalog() {
   stockRows.forEach((row: any) => {
     const id = extractId(row?.assortment?.meta);
     if (!id) return;
-    const value = Number(row?.stock ?? row?.freeStock ?? row?.quantity ?? 0);
+    const value = Number(row?.freeStock ?? row?.stock ?? row?.quantity ?? 0);
     if (!Number.isFinite(value)) return;
     stockByProduct.set(id, (stockByProduct.get(id) ?? 0) + value);
   });
@@ -294,7 +295,10 @@ export async function syncMoyskladCatalog() {
         : null) ?? salePrices[0];
     const priceValue = Number(matchedPrice?.value ?? 0);
     const price = Number.isFinite(priceValue) ? Math.round(priceValue / 100) : 0;
-    const stockValue = Number(stockByProduct.get(product?.id ?? "") ?? 0);
+    const stockValue =
+      stockByProduct.has(product?.id ?? "")
+        ? Number(stockByProduct.get(product?.id ?? "") ?? 0)
+        : Number(existing?.stock ?? 0);
     return {
       id,
       category_id: categoryId,
