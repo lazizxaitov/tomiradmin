@@ -102,29 +102,47 @@ async function moyskladFetch<T>(pathName: string, init?: RequestInit) {
   const auth = requireAuth();
   const url = pathName.startsWith("http") ? pathName : `${baseUrl()}${pathName}`;
 
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "Accept-Encoding": "gzip",
-      Accept: "application/json;charset=utf-8",
-      "Content-Type": "application/json;charset=utf-8",
-      ...(init?.headers ?? {}),
-      Authorization: auth,
-    },
-    cache: "no-store",
-  });
+  // MoySklad API sometimes closes large responses; undici reports it as "terminated".
+  // Retry a few times with small delay to make sync more robust for big accounts.
+  const maxAttempts = 3;
+  let lastError: unknown = null;
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`MoySklad ${response.status}: ${text || response.statusText}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          "Accept-Encoding": "gzip",
+          Accept: "application/json;charset=utf-8",
+          "Content-Type": "application/json;charset=utf-8",
+          ...(init?.headers ?? {}),
+          Authorization: auth,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`MoySklad ${response.status}: ${text || response.statusText}`);
+      }
+
+      if (response.status === 204) return null as T;
+      return (await response.json()) as T;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable = message.toLowerCase().includes("terminated");
+      if (!retryable || attempt === maxAttempts) throw error;
+      await new Promise((r) => setTimeout(r, 250 * attempt));
+    }
   }
 
-  if (response.status === 204) return null as T;
-  return (await response.json()) as T;
+  throw lastError instanceof Error ? lastError : new Error("MoySklad request failed");
 }
 
 async function fetchAll<T>(pathName: string, params?: Record<string, string>) {
-  const limit = 1000;
+  // Smaller page size avoids "terminated" on big accounts.
+  const limit = 200;
   let offset = 0;
   let total = 0;
   const rows: T[] = [];
@@ -243,14 +261,13 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
     existingImagesByProductId.get(img.product_id)!.push(img);
   });
 
-  const [folders, products, stores, priceTypes, stockReport] = await Promise.all([
-    fetchAll<any>("/entity/productfolder"),
-    fetchAll<any>("/entity/product", { expand: "salePrices.priceType" }),
-    fetchAll<any>("/entity/store"),
-    listMoyskladPriceTypes(),
-    // Global free stock, simpler than by-store report for the admin catalog.
-    moyskladFetch<any>("/report/stock/all/current?stockType=freeStock"),
-  ]);
+  // Avoid parallel heavy requests; large accounts may hit "terminated" otherwise.
+  const folders = await fetchAll<any>("/entity/productfolder");
+  const stores = await fetchAll<any>("/entity/store");
+  const priceTypes = await listMoyskladPriceTypes();
+  // Global free stock, simpler than by-store report for the admin catalog.
+  const stockReport = await moyskladFetch<any>("/report/stock/all/current?stockType=freeStock");
+  const products = await fetchAll<any>("/entity/product", { expand: "salePrices.priceType" });
 
   let priceTypeId = integration.price_type_id;
   if (!priceTypeId && integration.price_type_name) {
