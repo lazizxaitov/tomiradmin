@@ -42,9 +42,10 @@ export async function GET(request: Request) {
   }
 
   const baseUrl = (integration.base_url || "https://api.moysklad.ru/api/remap/1.2").replace(/\/+$/, "");
+  // `store` filtering is supported for the expanded stock report.
   const filter = `store=${baseUrl}/entity/store/${storeId}`;
   const stockUrl =
-    `${baseUrl}/report/stock/all/current?` +
+    `${baseUrl}/report/stock/all?` +
     new URLSearchParams({
       stockType: "freeStock",
       limit: "1000",
@@ -99,8 +100,7 @@ export async function GET(request: Request) {
     const adjustment =
       localProductId ? sumStockAdjustments({ storeId, productId: localProductId }) : 0;
 
-    const base =
-      Number(row.freeStock ?? row.quantity ?? row.stock ?? 0) || 0;
+    const base = Number(row.freeStock ?? row.quantity ?? row.stock ?? 0) || 0;
 
     return {
       moysklad_product_id: moyProductId,
