@@ -503,10 +503,6 @@ export async function sendOrderToMoysklad(orderId: number) {
     // We must know which MoySklad store to decrement for a given branch.
     throw new Error("У филиала не выбран склад МойСклад");
   }
-  if (!storeMeta) {
-    // We must know which MoySklad store to decrement for a given branch.
-    throw new Error("У филиала не выбран склад МойСклад");
-  }
 
   const customer = order.customer_id
     ? store.customers.find((item) => item.id === order.customer_id) ?? null
@@ -581,6 +577,9 @@ export async function sendRetailDemandToMoysklad(orderId: number) {
 
   const branch = getBranchById(order.branch_id);
   const storeMeta = branch?.moysklad_store_id ? buildMeta("store", branch.moysklad_store_id) : null;
+  if (!storeMeta) {
+    throw new Error("У филиала не выбран склад МойСклад");
+  }
 
   const customer = order.customer_id
     ? store.customers.find((item) => item.id === order.customer_id) ?? null
@@ -629,7 +628,7 @@ export async function sendRetailDemandToMoysklad(orderId: number) {
   };
   if (storeMeta) payload.store = storeMeta;
 
-  const created = await moyskladFetch<any>("/entity/retaildemand", {
+  const created = await moyskladFetch<any>("/entity/demand", {
     method: "POST",
     body: JSON.stringify(payload),
   });
