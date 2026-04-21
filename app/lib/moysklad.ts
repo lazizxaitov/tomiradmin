@@ -1,4 +1,4 @@
-import {
+﻿import {
   getBranchById,
   getMoyskladIntegration,
   persistStore,
@@ -74,7 +74,7 @@ export function setMoyskladCredentials(input: {
 
 function requireAuth() {
   const auth = authHeader();
-  if (!auth) throw new Error("Не задан токен/логин/пароль МойСклад");
+  if (!auth) throw new Error("РќРµ Р·Р°РґР°РЅ С‚РѕРєРµРЅ/Р»РѕРіРёРЅ/РїР°СЂРѕР»СЊ РњРѕР№РЎРєР»Р°Рґ");
   return auth;
 }
 
@@ -191,10 +191,10 @@ async function downloadImageToUploads(downloadHref: string, suggestedName: strin
     cache: "no-store",
   });
   const location = first.headers.get("location")?.trim() || "";
-  if (!location) throw new Error("Не удалось получить ссылку на изображение");
+  if (!location) throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃСЃС‹Р»РєСѓ РЅР° РёР·РѕР±СЂР°Р¶РµРЅРёРµ");
 
   const imgRes = await fetch(location, { cache: "no-store" });
-  if (!imgRes.ok) throw new Error(`Не удалось скачать изображение (${imgRes.status})`);
+  if (!imgRes.ok) throw new Error(`РќРµ СѓРґР°Р»РѕСЃСЊ СЃРєР°С‡Р°С‚СЊ РёР·РѕР±СЂР°Р¶РµРЅРёРµ (${imgRes.status})`);
   const original = Buffer.from(await imgRes.arrayBuffer());
   const buffer = await toSquareJpegIfPossible(original).catch(() => original);
 
@@ -227,7 +227,7 @@ async function toSquareJpegIfPossible(input: Buffer) {
 
 export async function testMoyskladConnection() {
   const auth = authHeader();
-  if (!auth) throw new Error("Не задан токен/логин/пароль МойСклад");
+  if (!auth) throw new Error("РќРµ Р·Р°РґР°РЅ С‚РѕРєРµРЅ/Р»РѕРіРёРЅ/РїР°СЂРѕР»СЊ РњРѕР№РЎРєР»Р°Рґ");
   const url = `${baseUrl()}/entity/store?limit=1`;
   const response = await fetch(url, {
     headers: { Authorization: auth, Accept: "application/json;charset=utf-8" },
@@ -252,7 +252,7 @@ function slugify(value: string) {
   return value
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9а-яё\s-]/gi, "")
+    .replace(/[^a-z0-9Р°-СЏС‘\s-]/gi, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
@@ -260,7 +260,7 @@ function slugify(value: string) {
 
 export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
   const integration = getMoyskladIntegration();
-  if (!integration.enabled) throw new Error("Интеграция МойСклад выключена");
+  if (!integration.enabled) throw new Error("РРЅС‚РµРіСЂР°С†РёСЏ РњРѕР№РЎРєР»Р°Рґ РІС‹РєР»СЋС‡РµРЅР°");
   requireAuth();
 
   const existingCategoriesByMoyId = new Map<string, any>();
@@ -283,8 +283,6 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
   const folders = await fetchAll<any>("/entity/productfolder");
   const stores = await fetchAll<any>("/entity/store");
   const priceTypes = await listMoyskladPriceTypes();
-  // Avoid `expand` here: it can make responses huge and cause ETIMEDOUT on big accounts.
-  const products = await fetchAll<any>("/entity/product");
 
   let priceTypeId = integration.price_type_id;
   if (!priceTypeId && integration.price_type_name) {
@@ -300,7 +298,7 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
       priceTypes.find((item) => item.id === priceTypeId)?.name ?? integration.price_type_name;
   }
 
-  // Stock is synced via the "Остатки" window per store. Global stock report is too heavy for large accounts.
+  // Stock is synced via the "РћСЃС‚Р°С‚РєРё" window per store. Global stock report is too heavy for large accounts.
   const stockByProduct = new Map<string, number>();
 
   const now = nowIso();
@@ -311,7 +309,7 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
     const moyId = folder?.id ? String(folder.id) : "";
     const existing = moyId ? existingCategoriesByMoyId.get(moyId) : null;
     const id = existing?.id ? Number(existing.id) : nextCategoryId++;
-    const name = folder?.name?.toString() ?? existing?.name_ru ?? "Категория";
+    const name = folder?.name?.toString() ?? existing?.name_ru ?? "РљР°С‚РµРіРѕСЂРёСЏ";
     return {
       id,
       name_ru: name,
@@ -333,60 +331,87 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
   let nextProductId =
     store.products.reduce((max: number, item: any) => Math.max(max, Number(item?.id ?? 0)), 0) + 1;
 
-  const productsMapped = products.map((product: any, index: number) => {
-    const moyId = product?.id ? String(product.id) : "";
-    const existing = moyId ? existingProductsByMoyId.get(moyId) : null;
-    const id = existing?.id ? Number(existing.id) : nextProductId++;
-    const folderId = extractId(product?.productFolder?.meta);
-    const categoryId = folderId ? categoryById.get(folderId) ?? null : null;
-    const salePrices = Array.isArray(product?.salePrices) ? product.salePrices : [];
-    const matchedPrice =
-      (priceTypeId
-        ? salePrices.find((price: any) => extractId(price?.priceType?.meta) === priceTypeId)
-        : null) ?? salePrices[0];
-    const priceValue = Number(matchedPrice?.value ?? 0);
-    const price = Number.isFinite(priceValue) ? Math.round(priceValue / 100) : 0;
-    const stockValue = stockByProduct.has(product?.id ?? "")
-      ? Number(stockByProduct.get(product?.id ?? "") ?? 0)
-      : Number(existing?.stock ?? 0);
-    return {
-      id,
-      category_id: categoryId,
-      title_ru: product?.name?.toString() ?? "Товар",
-      title_uz: product?.name?.toString() ?? "Mahsulot",
-      description_title_ru: null,
-      description_title_uz: null,
-      description_text_ru: product?.description?.toString() ?? null,
-      description_text_uz: product?.description?.toString() ?? null,
-      price,
-      price_text_ru: null,
-      price_text_uz: null,
-      pricing_mode: "quantity" as const,
-      stock: Number.isFinite(stockValue) ? Math.round(stockValue) : 0,
-      is_active: product?.archived ? 0 : 1,
-      is_top: 0,
-      is_promo: 0,
-      old_price: null,
-      promo_price: null,
-      moysklad_id: product?.id ?? existing?.moysklad_id ?? null,
-      created_at: existing?.created_at ?? now,
-      updated_at: now,
-    };
-  });
-
   store.categories = categories as any;
-  store.products = productsMapped as any;
+
+  // Sync products per category and persist after each category, so products appear gradually.
+  const base = baseUrl();
+  const seenMoyProductIds = new Set<string>();
+  const mergedByMoyId = new Map<string, any>();
+
+  const nonMoyProducts = (store.products as any[]).filter((p: any) => !p?.moysklad_id);
+
+  for (const folder of folders) {
+    const folderMoyId = folder?.id ? String(folder.id) : "";
+    if (!folderMoyId) continue;
+    const categoryId = categoryById.get(folderMoyId) ?? null;
+
+    const filter = `productFolder=${base}/entity/productfolder/${encodeURIComponent(folderMoyId)}`;
+    const products = await fetchAll<any>("/entity/product", { filter });
+
+    for (const product of products) {
+      const moyId = product?.id ? String(product.id) : "";
+      if (!moyId) continue;
+      seenMoyProductIds.add(moyId);
+
+      const existing = mergedByMoyId.get(moyId) ?? existingProductsByMoyId.get(moyId) ?? null;
+      const id = existing?.id ? Number(existing.id) : nextProductId++;
+      const salePrices = Array.isArray(product?.salePrices) ? product.salePrices : [];
+      const matchedPrice =
+        (priceTypeId
+          ? salePrices.find((price: any) => extractId(price?.priceType?.meta) === priceTypeId)
+          : null) ?? salePrices[0];
+      const priceValue = Number(matchedPrice?.value ?? 0);
+      const price = Number.isFinite(priceValue) ? Math.round(priceValue / 100) : 0;
+      const stockValue = stockByProduct.has(product?.id ?? "")
+        ? Number(stockByProduct.get(product?.id ?? "") ?? 0)
+        : Number(existing?.stock ?? 0);
+
+      mergedByMoyId.set(moyId, {
+        id,
+        category_id: categoryId,
+        title_ru: product?.name?.toString() ?? "Товар",
+        title_uz: product?.name?.toString() ?? "Mahsulot",
+        description_title_ru: null,
+        description_title_uz: null,
+        description_text_ru: product?.description?.toString() ?? null,
+        description_text_uz: product?.description?.toString() ?? null,
+        price,
+        price_text_ru: null,
+        price_text_uz: null,
+        pricing_mode: "quantity" as const,
+        stock: Number.isFinite(stockValue) ? Math.round(stockValue) : 0,
+        is_active: product?.archived ? 0 : 1,
+        is_top: 0,
+        is_promo: 0,
+        old_price: null,
+        promo_price: null,
+        moysklad_id: product?.id ?? existing?.moysklad_id ?? null,
+        created_at: existing?.created_at ?? now,
+        updated_at: now,
+      });
+    }
+
+    store.products = [...nonMoyProducts, ...Array.from(mergedByMoyId.values())] as any;
+    await persistStore();
+  }
+
+  // Drop MoySklad products that no longer exist.
+  store.products = (store.products as any[]).filter((p: any) => {
+    const moyId = p?.moysklad_id ? String(p.moysklad_id) : "";
+    if (!moyId) return true;
+    return seenMoyProductIds.has(moyId);
+  }) as any;
+
   // Preserve local product images for products that still exist (ids are stable by moysklad_id).
-  const validProductIds = new Set<number>(productsMapped.map((p: any) => Number(p.id)));
+  const validProductIds = new Set<number>((store.products as any[]).map((p: any) => Number(p.id)));
   store.product_images = store.product_images.filter((img: any) => validProductIds.has(Number(img.product_id)));
   store.portion_options = [];
-
   const forceImages = Boolean(options?.forceImages);
   // Pull product images from MoySklad:
   // - if product has no local images yet
   // - or if forced (re-download + crop), but only for images previously downloaded from MoySklad.
   // We download images into /public/uploads so the mobile app can display them reliably.
-  for (const product of productsMapped as any[]) {
+  for (const product of store.products as any[]) {
     const productId = Number(product.id);
     const moyId = product?.moysklad_id ? String(product.moysklad_id) : "";
     if (!moyId) continue;
@@ -441,13 +466,13 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
 
   return {
     categories: categories.length,
-    products: productsMapped.length,
+    products: (store.products as any[]).filter((p: any) => p?.moysklad_id).length,
   };
 }
 
 export async function syncMoyskladCustomers() {
   const integration = getMoyskladIntegration();
-  if (!integration.enabled) throw new Error("Интеграция МойСклад выключена");
+  if (!integration.enabled) throw new Error("РРЅС‚РµРіСЂР°С†РёСЏ РњРѕР№РЎРєР»Р°Рґ РІС‹РєР»СЋС‡РµРЅР°");
   requireAuth();
 
   const counterparties = await fetchAll<any>("/entity/counterparty");
@@ -472,7 +497,7 @@ export async function syncMoyskladCustomers() {
     const id = store.customers.reduce((max, item) => Math.max(max, item.id), 0) + 1;
     store.customers.push({
       id,
-      name: row?.name?.toString() ?? "Клиент",
+      name: row?.name?.toString() ?? "РљР»РёРµРЅС‚",
       phone,
       password: null,
       bonus_balance: 0,
@@ -511,7 +536,7 @@ async function findOrCreateCounterparty(name: string, phone: string | null) {
   return moyskladFetch<any>("/entity/counterparty", {
     method: "POST",
     body: JSON.stringify({
-      name: name || "Покупатель",
+      name: name || "РџРѕРєСѓРїР°С‚РµР»СЊ",
       phone: phone || undefined,
     }),
   });
@@ -526,20 +551,20 @@ export async function sendOrderToMoysklad(orderId: number) {
   if (order.moysklad_customerorder_id) return { ok: true, skipped: true };
 
   const organization = await getOrganizationMeta();
-  if (!organization) throw new Error("Организация в МойСклад не найдена");
+  if (!organization) throw new Error("РћСЂРіР°РЅРёР·Р°С†РёСЏ РІ РњРѕР№РЎРєР»Р°Рґ РЅРµ РЅР°Р№РґРµРЅР°");
 
   const branch = getBranchById(order.branch_id);
   const storeMeta = branch?.moysklad_store_id ? buildMeta("store", branch.moysklad_store_id) : null;
   if (!storeMeta) {
     // We must know which MoySklad store to decrement for a given branch.
-    throw new Error("У филиала не выбран склад МойСклад");
+    throw new Error("РЈ С„РёР»РёР°Р»Р° РЅРµ РІС‹Р±СЂР°РЅ СЃРєР»Р°Рґ РњРѕР№РЎРєР»Р°Рґ");
   }
 
   const customer = order.customer_id
     ? store.customers.find((item) => item.id === order.customer_id) ?? null
     : null;
   const phone = customer?.phone ?? null;
-  const name = customer?.name ?? "Покупатель";
+  const name = customer?.name ?? "РџРѕРєСѓРїР°С‚РµР»СЊ";
 
   let counterpartyId = customer?.moysklad_id ?? null;
   if (!counterpartyId) {
@@ -551,7 +576,7 @@ export async function sendOrderToMoysklad(orderId: number) {
     }
   }
 
-  if (!counterpartyId) throw new Error("Контрагент МойСклад не найден");
+  if (!counterpartyId) throw new Error("РљРѕРЅС‚СЂР°РіРµРЅС‚ РњРѕР№РЎРєР»Р°Рґ РЅРµ РЅР°Р№РґРµРЅ");
 
   const items = store.order_items.filter((item) => item.order_id === order.id);
   const positions = items
@@ -568,10 +593,10 @@ export async function sendOrderToMoysklad(orderId: number) {
     })
     .filter(Boolean);
 
-  if (!positions.length) throw new Error("Нет товаров с привязкой к МойСклад");
+  if (!positions.length) throw new Error("РќРµС‚ С‚РѕРІР°СЂРѕРІ СЃ РїСЂРёРІСЏР·РєРѕР№ Рє РњРѕР№РЎРєР»Р°Рґ");
 
   const payload: Record<string, unknown> = {
-    name: `Заказ #${order.id}`,
+    name: `Р—Р°РєР°Р· #${order.id}`,
     externalCode: `tomir-order-${order.id}`,
     organization: { meta: organization },
     agent: refMeta("counterparty", counterpartyId),
@@ -604,19 +629,19 @@ export async function sendRetailDemandToMoysklad(orderId: number) {
   if (order.moysklad_retaildemand_id) return { ok: true, skipped: true };
 
   const organization = await getOrganizationMeta();
-  if (!organization) throw new Error("Организация в МойСклад не найдена");
+  if (!organization) throw new Error("РћСЂРіР°РЅРёР·Р°С†РёСЏ РІ РњРѕР№РЎРєР»Р°Рґ РЅРµ РЅР°Р№РґРµРЅР°");
 
   const branch = getBranchById(order.branch_id);
   const storeMeta = branch?.moysklad_store_id ? buildMeta("store", branch.moysklad_store_id) : null;
   if (!storeMeta) {
-    throw new Error("У филиала не выбран склад МойСклад");
+    throw new Error("РЈ С„РёР»РёР°Р»Р° РЅРµ РІС‹Р±СЂР°РЅ СЃРєР»Р°Рґ РњРѕР№РЎРєР»Р°Рґ");
   }
 
   const customer = order.customer_id
     ? store.customers.find((item) => item.id === order.customer_id) ?? null
     : null;
   const phone = customer?.phone ?? null;
-  const name = customer?.name ?? "Покупатель";
+  const name = customer?.name ?? "РџРѕРєСѓРїР°С‚РµР»СЊ";
 
   let counterpartyId = customer?.moysklad_id ?? null;
   if (!counterpartyId) {
@@ -628,7 +653,7 @@ export async function sendRetailDemandToMoysklad(orderId: number) {
     }
   }
 
-  if (!counterpartyId) throw new Error("Контрагент МойСклад не найден");
+  if (!counterpartyId) throw new Error("РљРѕРЅС‚СЂР°РіРµРЅС‚ РњРѕР№РЎРєР»Р°Рґ РЅРµ РЅР°Р№РґРµРЅ");
 
   const items = store.order_items.filter((item) => item.order_id === order.id);
   const positions = items
@@ -645,10 +670,10 @@ export async function sendRetailDemandToMoysklad(orderId: number) {
     })
     .filter(Boolean);
 
-  if (!positions.length) throw new Error("Нет товаров с привязкой к МойСклад");
+  if (!positions.length) throw new Error("РќРµС‚ С‚РѕРІР°СЂРѕРІ СЃ РїСЂРёРІСЏР·РєРѕР№ Рє РњРѕР№РЎРєР»Р°Рґ");
 
   const payload: Record<string, unknown> = {
-    name: `Продажа #${order.id}`,
+    name: `РџСЂРѕРґР°Р¶Р° #${order.id}`,
     externalCode: `tomir-sale-${order.id}`,
     organization: { meta: organization },
     agent: refMeta("counterparty", counterpartyId),
