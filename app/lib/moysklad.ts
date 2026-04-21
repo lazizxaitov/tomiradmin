@@ -333,28 +333,22 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
 
   store.categories = categories as any;
 
-  // Sync products per category and persist after each category, so products appear gradually.
-  const base = baseUrl();
   const seenMoyProductIds = new Set<string>();
   const mergedByMoyId = new Map<string, any>();
 
   const nonMoyProducts = (store.products as any[]).filter((p: any) => !p?.moysklad_id);
 
-  for (const folder of folders) {
-    const folderMoyId = folder?.id ? String(folder.id) : "";
-    if (!folderMoyId) continue;
-    const categoryId = categoryById.get(folderMoyId) ?? null;
-
-    const filter = `productFolder=${base}/entity/productfolder/${encodeURIComponent(folderMoyId)}`;
-    const products = await fetchAll<any>("/entity/product", { filter });
-
-    for (const product of products) {
+  // Some fields (like productFolder) are not filterable in MoySklad. Instead, sync in pages and persist after each page.
+  for await (const page of fetchPages<any>("/entity/product")) {
+    for (const product of page) {
       const moyId = product?.id ? String(product.id) : "";
       if (!moyId) continue;
       seenMoyProductIds.add(moyId);
 
       const existing = mergedByMoyId.get(moyId) ?? existingProductsByMoyId.get(moyId) ?? null;
       const id = existing?.id ? Number(existing.id) : nextProductId++;
+      const folderId = extractId(product?.productFolder?.meta);
+      const categoryId = folderId ? categoryById.get(folderId) ?? null : null;
       const salePrices = Array.isArray(product?.salePrices) ? product.salePrices : [];
       const matchedPrice =
         (priceTypeId
@@ -468,6 +462,28 @@ export async function syncMoyskladCatalog(options?: { forceImages?: boolean }) {
     categories: categories.length,
     products: (store.products as any[]).filter((p: any) => p?.moysklad_id).length,
   };
+}
+
+async function* fetchPages<T>(pathName: string, params?: Record<string, string>) {
+  // Keep pages small for stability on big accounts.
+  const limit = 50;
+  let offset = 0;
+  let total = 0;
+
+  while (true) {
+    const query = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+      ...(params ?? {}),
+    });
+    const response = await moyskladFetch<MoyskladListResponse<T>>(`${pathName}?${query}`);
+    const batch = response.rows ?? [];
+    yield batch;
+
+    total = response.meta?.size ?? (offset + batch.length);
+    offset += response.meta?.limit ?? limit;
+    if (offset >= total || batch.length === 0) break;
+  }
 }
 
 export async function syncMoyskladCustomers() {
