@@ -13,15 +13,19 @@ type Branch = {
   work_hours: string | null;
   lat: number | null;
   lng: number | null;
+  moysklad_store_id?: string | null;
 };
 
-const empty = { title: "", address: "", phone: "", workHours: "", lat: "", lng: "" };
+type MoyskladStore = { id?: string; name?: string };
+
+const empty = { title: "", address: "", phone: "", workHours: "", lat: "", lng: "", moyskladStoreId: "" };
 
 export default function BranchesPage() {
   const [items, setItems] = useState<Branch[]>([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(empty);
+  const [moyStores, setMoyStores] = useState<MoyskladStore[]>([]);
 
   const load = () =>
     fetch("/api/branches")
@@ -30,6 +34,10 @@ export default function BranchesPage() {
 
   useEffect(() => {
     load();
+    fetch("/api/moysklad/stores")
+      .then((res) => res.json())
+      .then((data) => setMoyStores(data.items ?? []))
+      .catch(() => setMoyStores([]));
   }, []);
 
   const submit = async (event: FormEvent) => {
@@ -41,6 +49,7 @@ export default function BranchesPage() {
       workHours: form.workHours,
       lat: form.lat ? Number(form.lat) : null,
       lng: form.lng ? Number(form.lng) : null,
+      moyskladStoreId: form.moyskladStoreId || null,
     };
 
     if (editingId) {
@@ -72,6 +81,7 @@ export default function BranchesPage() {
       workHours: item.work_hours ?? "",
       lat: item.lat?.toString() ?? "",
       lng: item.lng?.toString() ?? "",
+      moyskladStoreId: item.moysklad_store_id ?? "",
     });
     setOpen(true);
   };
@@ -97,6 +107,12 @@ export default function BranchesPage() {
             <p className="text-base font-bold text-[#3c2828]">{item.title}</p>
             <p className="text-sm text-[#8d7374]">{item.address}</p>
             <p className="text-xs text-[#8d7374]">{item.lat}, {item.lng}</p>
+            {item.moysklad_store_id ? (
+              <p className="text-xs text-[#9a7f80]">
+                Склад:{" "}
+                {moyStores.find((store) => store.id === item.moysklad_store_id)?.name ?? item.moysklad_store_id}
+              </p>
+            ) : null}
             <PrimaryButton className="mt-3" onClick={() => edit(item)}>Редактировать</PrimaryButton>
           </Card>
         ))}
@@ -107,6 +123,18 @@ export default function BranchesPage() {
           <input className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm" placeholder="Адрес" value={form.address} onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))} required />
           <input className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm" placeholder="Телефон" value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} />
           <input className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm" placeholder="Часы работы" value={form.workHours} onChange={(event) => setForm((prev) => ({ ...prev, workHours: event.target.value }))} />
+          <select
+            className="rounded-2xl border border-[#ead8d1] px-4 py-3 text-sm"
+            value={form.moyskladStoreId}
+            onChange={(event) => setForm((prev) => ({ ...prev, moyskladStoreId: event.target.value }))}
+          >
+            <option value="">Склад МойСклад: не выбран</option>
+            {moyStores.map((store) => (
+              <option key={store.id ?? store.name} value={store.id ?? ""}>
+                {store.name ?? "Без названия"}
+              </option>
+            ))}
+          </select>
 
           <YandexMapPicker
             address={form.address}
