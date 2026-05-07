@@ -115,6 +115,8 @@ export default function SettingsPage() {
   const [moyToken, setMoyToken] = useState("");
   const [moyLogin, setMoyLogin] = useState("");
   const [moyPassword, setMoyPassword] = useState("");
+  const [moyClearModalOpen, setMoyClearModalOpen] = useState(false);
+  const [moyClearing, setMoyClearing] = useState(false);
 
   // Re-attach to a running sync job after refresh/navigation.
   const pollMoySync = (
@@ -539,6 +541,24 @@ export default function SettingsPage() {
     setTimeout(poll, 1200);
   };
 
+  const clearMoyskladCatalog = async () => {
+    setMoyClearing(true);
+    setMoyMessage(null);
+    const res = await fetch("/api/moysklad/catalog/clear", { method: "POST" }).catch(() => null);
+    setMoyClearing(false);
+    setMoyClearModalOpen(false);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => null);
+      setMoyMessage(data?.error?.toString?.() || "Не удалось удалить товары");
+      return;
+    }
+    const data = await res.json().catch(() => null);
+    load();
+    setMoyMessage(
+      `Удалено: товары ${Number(data?.removed?.products ?? 0)}, фото ${Number(data?.removed?.images ?? 0)}`,
+    );
+  };
+
   const syncCustomers = async () => {
     setMoySyncingCustomers(true);
     setMoyMessage(null);
@@ -926,6 +946,12 @@ export default function SettingsPage() {
               <GhostButton onClick={refreshMoyskladImages} disabled={moySyncingCatalog}>
                 {moySyncingCatalog ? "Синхронизирую..." : "Обновить фото"}
               </GhostButton>
+              <GhostButton
+                onClick={() => setMoyClearModalOpen(true)}
+                disabled={moySyncingCatalog || moyClearing}
+              >
+                {moyClearing ? "Удаляю..." : "Удалить товары"}
+              </GhostButton>
               <GhostButton onClick={syncCustomers} disabled={moySyncingCustomers}>
                 {moySyncingCustomers ? "Синхронизирую..." : "Синхронизировать клиентов"}
               </GhostButton>
@@ -937,6 +963,27 @@ export default function SettingsPage() {
           </div>
         )}
       </Card>
+
+      <Modal
+        open={moyClearModalOpen}
+        onClose={() => (moyClearing ? null : setMoyClearModalOpen(false))}
+        title="Удалить товары МойСклад"
+        footer={
+          <div className="flex flex-wrap gap-3">
+            <PrimaryButton onClick={clearMoyskladCatalog} disabled={moyClearing}>
+              {moyClearing ? "Удаляю..." : "Да, удалить"}
+            </PrimaryButton>
+            <GhostButton onClick={() => setMoyClearModalOpen(false)} disabled={moyClearing}>
+              Отмена
+            </GhostButton>
+          </div>
+        }
+      >
+        <p className="text-sm text-[#6f5b5c]">
+          Это удалит из базы все товары, которые были синхронизированы из МойСклад, а также их фото. Действие
+          необратимо.
+        </p>
+      </Modal>
 
       <SectionTitle
         title="Точки самовывоза"
