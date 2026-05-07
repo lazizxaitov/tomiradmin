@@ -946,9 +946,15 @@ export function listProducts(options?: {
   onlyTop?: boolean;
   onlyPromotional?: boolean;
 }) {
+  const seenMoyIds = new Set<string>();
   const filtered = store.products.filter((product) => {
     if (options?.onlyActive && product.is_active !== 1) return false;
     if (options?.categoryId && product.category_id !== options.categoryId) return false;
+    if (product.moysklad_id) {
+      const key = String(product.moysklad_id);
+      if (seenMoyIds.has(key)) return false;
+      seenMoyIds.add(key);
+    }
     const isTop = Number((product as Partial<Product>).is_top ?? 0) === 1;
     const isPromo = Number((product as Partial<Product>).is_promo ?? 0) === 1;
     const promoPrice = Number((product as Partial<Product>).promo_price ?? 0);

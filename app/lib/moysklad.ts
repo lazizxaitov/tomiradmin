@@ -40,6 +40,34 @@ function createProgressReporter(
   };
 }
 
+function dedupeProductImages() {
+  const seen = new Set<string>();
+  const next: typeof store.product_images = [];
+
+  const sorted = [...store.product_images].sort((a: any, b: any) => {
+    const pidA = Number(a?.product_id ?? 0);
+    const pidB = Number(b?.product_id ?? 0);
+    if (pidA !== pidB) return pidA - pidB;
+    const urlA = String(a?.url ?? "");
+    const urlB = String(b?.url ?? "");
+    if (urlA !== urlB) return urlA.localeCompare(urlB);
+    return Number(a?.id ?? 0) - Number(b?.id ?? 0);
+  });
+
+  for (const img of sorted as any[]) {
+    const productId = Number(img?.product_id ?? 0);
+    const url = String(img?.url ?? "").trim();
+    if (!productId || !url) continue;
+    const key = `${productId}|${url}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    next.push(img);
+  }
+
+  let nextId = 1;
+  store.product_images = next.map((img: any) => ({ ...img, id: nextId++ })) as any;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -552,6 +580,7 @@ export async function syncMoyskladCatalog(options?: {
       lastSyncError: null,
     });
 
+    dedupeProductImages();
     await persistStore();
     return { categoriesAdded: addedCategories, productsAdded: added };
   }
@@ -779,6 +808,7 @@ export async function syncMoyskladCatalog(options?: {
     lastSyncError: null,
   });
 
+  dedupeProductImages();
   await persistStore();
 
   return {
