@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# uploads (generated at runtime)
+/public/uploads
+
 # local sqlite + secrets
 /data
 
