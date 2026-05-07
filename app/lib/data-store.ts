@@ -213,6 +213,10 @@ type Store = {
       password_enc: string | null;
       price_type_id: string | null;
       price_type_name: string | null;
+      catalog_store_id: string | null;
+      catalog_store_name: string | null;
+      catalog_use_stock_filter: boolean;
+      catalog_products_synced_at: string | null;
       last_sync_at: string | null;
       last_sync_error: string | null;
     };
@@ -705,6 +709,10 @@ const seededStore: Store = {
       password_enc: null,
       price_type_id: null,
       price_type_name: null,
+      catalog_store_id: null,
+      catalog_store_name: null,
+      catalog_use_stock_filter: false,
+      catalog_products_synced_at: null,
       last_sync_at: null,
       last_sync_error: null,
     },
@@ -733,6 +741,10 @@ function normalizeStoreSnapshot(snapshot: Store) {
       password_enc: null,
       price_type_id: null,
       price_type_name: null,
+      catalog_store_id: null,
+      catalog_store_name: null,
+      catalog_use_stock_filter: false,
+      catalog_products_synced_at: null,
       last_sync_at: null,
       last_sync_error: null,
     },
@@ -1332,6 +1344,10 @@ export function getMoyskladIntegration() {
       password_enc: null,
       price_type_id: null,
       price_type_name: null,
+      catalog_store_id: null,
+      catalog_store_name: null,
+      catalog_use_stock_filter: false,
+      catalog_products_synced_at: null,
       last_sync_at: null,
       last_sync_error: null,
     },
@@ -1346,10 +1362,26 @@ export function getMoyskladIntegration() {
     password_enc: null,
     price_type_id: null,
     price_type_name: null,
+    catalog_store_id: null,
+    catalog_store_name: null,
+    catalog_use_stock_filter: false,
+    catalog_products_synced_at: null,
     last_sync_at: null,
     last_sync_error: null,
   };
 
+  if (store.integrations.moysklad.catalog_store_id === undefined) {
+    store.integrations.moysklad.catalog_store_id = null;
+  }
+  if (store.integrations.moysklad.catalog_store_name === undefined) {
+    store.integrations.moysklad.catalog_store_name = null;
+  }
+  if (store.integrations.moysklad.catalog_use_stock_filter === undefined) {
+    store.integrations.moysklad.catalog_use_stock_filter = false;
+  }
+  if (store.integrations.moysklad.catalog_products_synced_at === undefined) {
+    store.integrations.moysklad.catalog_products_synced_at = null;
+  }
   return store.integrations.moysklad;
 }
 
@@ -1362,6 +1394,10 @@ export function updateMoyskladIntegration(input: {
   passwordEnc?: string | null;
   priceTypeId?: string | null;
   priceTypeName?: string | null;
+  catalogStoreId?: string | null;
+  catalogStoreName?: string | null;
+  catalogUseStockFilter?: boolean;
+  catalogProductsSyncedAt?: string | null;
   lastSyncAt?: string | null;
   lastSyncError?: string | null;
 }) {
@@ -1374,6 +1410,14 @@ export function updateMoyskladIntegration(input: {
   if (input.passwordEnc !== undefined) integration.password_enc = input.passwordEnc;
   if (input.priceTypeId !== undefined) integration.price_type_id = input.priceTypeId;
   if (input.priceTypeName !== undefined) integration.price_type_name = input.priceTypeName;
+  if (input.catalogStoreId !== undefined) integration.catalog_store_id = input.catalogStoreId;
+  if (input.catalogStoreName !== undefined) integration.catalog_store_name = input.catalogStoreName;
+  if (input.catalogUseStockFilter !== undefined) {
+    integration.catalog_use_stock_filter = Boolean(input.catalogUseStockFilter);
+  }
+  if (input.catalogProductsSyncedAt !== undefined) {
+    integration.catalog_products_synced_at = input.catalogProductsSyncedAt;
+  }
   if (input.lastSyncAt !== undefined) integration.last_sync_at = input.lastSyncAt;
   if (input.lastSyncError !== undefined) integration.last_sync_error = input.lastSyncError;
   void persistStore();
@@ -2327,4 +2371,3 @@ export function resetOrderStatsAndHistory() {
   void persistStore();
   return { ok: true as const };
 }
-

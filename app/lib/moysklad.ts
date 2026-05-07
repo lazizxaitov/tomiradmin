@@ -15,6 +15,12 @@ type MoyskladListResponse<T> = {
 };
 
 type MoyskladMeta = { href?: string; type?: string; mediaType?: string };
+type StockRow = {
+  freeStock?: number;
+  quantity?: number;
+  stock?: number;
+  meta?: { href?: string | null };
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -80,6 +86,12 @@ function requireAuth() {
 
 function extractId(meta?: MoyskladMeta | null) {
   const href = meta?.href;
+  if (!href) return null;
+  const parts = href.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? null;
+}
+
+function extractIdFromHref(href?: string | null) {
   if (!href) return null;
   const parts = href.split("/").filter(Boolean);
   return parts[parts.length - 1] ?? null;
@@ -248,6 +260,45 @@ export async function listMoyskladPriceTypes() {
   return moyskladFetch<Array<{ id?: string; name?: string }>>("/context/companysettings/pricetype");
 }
 
+const stockFilterCache = new Map<
+  string,
+  { expiresAt: number; inStockMoyProductIds: Set<string> }
+>();
+
+const STOCK_FILTER_TTL_MS = 15_000;
+
+export async function listMoyskladInStockProductIdsByStore(storeId: string) {
+  const normalized = storeId.trim();
+  if (!normalized) return new Set<string>();
+
+  const cached = stockFilterCache.get(normalized);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.inStockMoyProductIds;
+
+  const integration = getMoyskladIntegration();
+  if (!integration.enabled) return new Set<string>();
+  requireAuth();
+
+  const storeHref = `${baseUrl()}/entity/store/${encodeURIComponent(normalized)}`;
+  const filter = `store=${storeHref}`;
+
+  const rows = await fetchAll<StockRow>("/report/stock/all", {
+    stockType: "freeStock",
+    filter,
+  });
+
+  const ids = new Set<string>();
+  for (const row of rows) {
+    const raw = Number(row.freeStock ?? row.quantity ?? row.stock ?? 0);
+    if (!Number.isFinite(raw) || raw <= 0) continue;
+    const id = extractIdFromHref(row.meta?.href ?? null);
+    if (id) ids.add(String(id));
+  }
+
+  stockFilterCache.set(normalized, { expiresAt: now + STOCK_FILTER_TTL_MS, inStockMoyProductIds: ids });
+  return ids;
+}
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -259,12 +310,231 @@ function slugify(value: string) {
 }
 
 export async function syncMoyskladCatalog(options?: {
+  incremental?: boolean;
   forceImages?: boolean;
   onProgress?: (progress: { stage: string; processed: number; total: number | null }) => void;
 }) {
   const integration = getMoyskladIntegration();
   if (!integration.enabled) throw new Error("РРЅС‚РµРіСЂР°С†РёСЏ РњРѕР№РЎРєР»Р°Рґ РІС‹РєР»СЋС‡РµРЅР°");
   requireAuth();
+
+  const incremental = Boolean(options?.incremental);
+  if (incremental) {
+    const existingCategoriesByMoyId = new Map<string, any>();
+    store.categories.forEach((category: any) => {
+      if (category?.moysklad_id) existingCategoriesByMoyId.set(String(category.moysklad_id), category);
+    });
+
+    const existingProductsByMoyId = new Map<string, true>();
+    store.products.forEach((product: any) => {
+      if (product?.moysklad_id) existingProductsByMoyId.set(String(product.moysklad_id), true);
+    });
+
+    const now = nowIso();
+
+    // Avoid parallel heavy requests; large accounts may hit "terminated" otherwise.
+    const folders = await fetchAll<any>("/entity/productfolder");
+    const stores = await fetchAll<any>("/entity/store");
+    const priceTypes = await listMoyskladPriceTypes();
+
+    let priceTypeId = integration.price_type_id;
+    if (!priceTypeId && integration.price_type_name) {
+      const found = priceTypes.find((item) => item.name === integration.price_type_name);
+      if (found?.id) priceTypeId = found.id;
+    }
+    if (!priceTypeId && priceTypes.length > 0) {
+      priceTypeId = priceTypes[0]?.id ?? null;
+    }
+    if (priceTypeId && priceTypeId !== integration.price_type_id) {
+      integration.price_type_id = priceTypeId;
+      integration.price_type_name =
+        priceTypes.find((item) => item.id === priceTypeId)?.name ?? integration.price_type_name;
+    }
+
+    let nextCategoryId =
+      store.categories.reduce((max: number, item: any) => Math.max(max, Number(item?.id ?? 0)), 0) + 1;
+    let addedCategories = 0;
+
+    folders.forEach((folder: any, index: number) => {
+      const moyId = folder?.id ? String(folder.id) : "";
+      if (!moyId) return;
+      if (existingCategoriesByMoyId.has(moyId)) return;
+      const name = folder?.name?.toString() ?? "Категория";
+      store.categories.push({
+        id: nextCategoryId++,
+        name_ru: name,
+        name_uz: name,
+        slug: slugify(name || `category-${nextCategoryId}`),
+        image_url: null,
+        sort_order: store.categories.length + 1 || index + 1,
+        moysklad_id: folder?.id ?? null,
+        created_at: now,
+        updated_at: now,
+      });
+      addedCategories += 1;
+    });
+
+    const categoryByMoyId = new Map<string, number>();
+    store.categories.forEach((item: any) => {
+      if (item?.moysklad_id) categoryByMoyId.set(String(item.moysklad_id), Number(item.id));
+    });
+
+    let nextProductId =
+      store.products.reduce((max: number, item: any) => Math.max(max, Number(item?.id ?? 0)), 0) + 1;
+
+    const since = integration.catalog_products_synced_at?.toString().trim() || "";
+    const params: Record<string, string> | undefined = since ? { filter: `updated>=${since}` } : undefined;
+
+    let processed = 0;
+    let added = 0;
+    const newProductIds: number[] = [];
+
+    const iter = async function* () {
+      if (!params) {
+        yield* fetchPages<any>("/entity/product");
+        return;
+      }
+      try {
+        yield* fetchPages<any>("/entity/product", params);
+      } catch {
+        yield* fetchPages<any>("/entity/product");
+      }
+    };
+
+    for await (const page of iter()) {
+      for (const product of page.rows) {
+        const moyId = product?.id ? String(product.id) : "";
+        if (!moyId) continue;
+        processed += 1;
+        if (existingProductsByMoyId.has(moyId)) continue;
+
+        const folderId = extractId(product?.productFolder?.meta);
+        const categoryId = folderId ? categoryByMoyId.get(folderId) ?? null : null;
+        const salePrices = Array.isArray(product?.salePrices) ? product.salePrices : [];
+        const matchedPrice =
+          (priceTypeId
+            ? salePrices.find((price: any) => extractId(price?.priceType?.meta) === priceTypeId)
+            : null) ?? salePrices[0];
+        const priceValue = Number(matchedPrice?.value ?? 0);
+        const price = Number.isFinite(priceValue) ? Math.round(priceValue / 100) : 0;
+
+        store.products.push({
+          id: nextProductId++,
+          category_id: categoryId,
+          title_ru: product?.name?.toString() ?? "Товар",
+          title_uz: product?.name?.toString() ?? "Mahsulot",
+          description_title_ru: null,
+          description_title_uz: null,
+          description_text_ru: product?.description?.toString() ?? null,
+          description_text_uz: product?.description?.toString() ?? null,
+          price,
+          price_text_ru: null,
+          price_text_uz: null,
+          pricing_mode: "quantity",
+          stock: 0,
+          is_active: product?.archived ? 0 : 1,
+          is_top: 0,
+          is_promo: 0,
+          old_price: null,
+          promo_price: null,
+          moysklad_id: product?.id ?? null,
+          created_at: now,
+          updated_at: now,
+        } as any);
+
+        const newId = nextProductId - 1;
+        newProductIds.push(newId);
+        existingProductsByMoyId.set(moyId, true);
+        added += 1;
+      }
+
+      if (added > 0) await persistStore();
+      options?.onProgress?.({
+        stage: "products",
+        processed,
+        total: Number.isFinite(page.total) ? page.total : null,
+      });
+    }
+
+    const forceImages = Boolean(options?.forceImages);
+    const imageTargets = (store.products as any[]).filter((product: any) => {
+      const productId = Number(product?.id ?? 0);
+      const moyId = product?.moysklad_id ? String(product.moysklad_id) : "";
+      if (!productId || !moyId) return false;
+      if (!forceImages && !newProductIds.includes(productId)) return false;
+      const current = store.product_images.filter((img: any) => Number(img.product_id) === productId);
+      const hasAny = current.length > 0;
+      const hasMoysklad = current.some((img: any) => String(img.url ?? "").startsWith("/uploads/moysklad/"));
+      if (hasAny && !(forceImages && hasMoysklad)) return false;
+      return true;
+    });
+
+    let imagesProcessed = 0;
+    for (const product of imageTargets) {
+      const productId = Number(product.id);
+      const moyId = product?.moysklad_id ? String(product.moysklad_id) : "";
+      if (!moyId) continue;
+
+      const current = store.product_images.filter((img: any) => Number(img.product_id) === productId);
+      const hasAny = current.length > 0;
+      const hasMoysklad = current.some((img: any) => String(img.url ?? "").startsWith("/uploads/moysklad/"));
+      if (hasAny && !(forceImages && hasMoysklad)) continue;
+      if (forceImages && hasMoysklad) {
+        store.product_images = store.product_images.filter(
+          (img: any) =>
+            !(Number(img.product_id) === productId && String(img.url ?? "").startsWith("/uploads/moysklad/")),
+        );
+      }
+
+      try {
+        const images = await moyskladFetch<MoyskladListResponse<any>>(
+          `/entity/product/${encodeURIComponent(moyId)}/images?limit=1`,
+        );
+        const row = images.rows?.[0];
+        const downloadHref = row?.meta?.downloadHref?.toString?.() ?? "";
+        const filename = row?.filename?.toString?.() ?? "image.png";
+        if (!downloadHref) continue;
+        const url = await downloadImageToUploads(downloadHref, filename);
+        const nextImgId =
+          store.product_images.reduce((max: number, item: any) => Math.max(max, Number(item?.id ?? 0)), 0) + 1;
+        store.product_images.push({
+          id: nextImgId,
+          product_id: productId,
+          url,
+          sort_order: 0,
+        });
+      } catch {
+        // Ignore image errors; catalog sync should still work.
+      }
+
+      imagesProcessed += 1;
+      if (forceImages || newProductIds.length > 0) {
+        options?.onProgress?.({
+          stage: "images",
+          processed: imagesProcessed,
+          total: imageTargets.length,
+        });
+      }
+    }
+
+    // Keep existing branch list, only attempt to auto-map by name if empty.
+    store.branches.forEach((branch) => {
+      if (branch.moysklad_store_id) return;
+      const matched = stores.find((item: any) =>
+        branch.title?.toLowerCase().includes((item?.name ?? "").toLowerCase()),
+      );
+      if (matched?.id) branch.moysklad_store_id = matched.id;
+    });
+
+    updateMoyskladIntegration({
+      catalogProductsSyncedAt: now,
+      lastSyncAt: now,
+      lastSyncError: null,
+    });
+
+    await persistStore();
+    return { categoriesAdded: addedCategories, productsAdded: added };
+  }
 
   const existingCategoriesByMoyId = new Map<string, any>();
   store.categories.forEach((category: any) => {
@@ -484,6 +754,7 @@ export async function syncMoyskladCatalog(options?: {
   });
 
   updateMoyskladIntegration({
+    catalogProductsSyncedAt: now,
     lastSyncAt: now,
     lastSyncError: null,
   });

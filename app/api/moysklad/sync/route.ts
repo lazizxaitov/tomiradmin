@@ -26,7 +26,7 @@ function safeErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Sync failed";
 }
 
-function startJob(input: { mode: "catalog" | "customers"; forceImages: boolean }) {
+function startJob(input: { mode: "catalog" | "customers"; forceImages: boolean; incremental: boolean }) {
   if (job?.running) return job;
 
   job = {
@@ -49,6 +49,7 @@ function startJob(input: { mode: "catalog" | "customers"; forceImages: boolean }
         await syncMoyskladCustomers();
       } else {
         await syncMoyskladCatalog({
+          incremental: input.incremental,
           forceImages: input.forceImages,
           onProgress: (progress) => {
             if (!job) return;
@@ -100,9 +101,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const mode = body?.mode?.toString()?.trim() || "catalog";
   const forceImages = Boolean(body?.forceImages);
+  const incremental = body?.incremental !== undefined ? Boolean(body.incremental) : true;
 
   const normalizedMode = mode === "customers" ? "customers" : "catalog";
-  const current = startJob({ mode: normalizedMode, forceImages });
+  const current = startJob({ mode: normalizedMode, forceImages, incremental });
   return NextResponse.json({
     ok: true,
     job: {

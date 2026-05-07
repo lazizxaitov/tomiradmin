@@ -1,9 +1,28 @@
 ﻿import { NextResponse } from "next/server";
 
-import { listProducts, store } from "@/app/lib/data-store";
+import { getMoyskladIntegration, listProducts, store } from "@/app/lib/data-store";
+import { listMoyskladInStockProductIdsByStore } from "@/app/lib/moysklad";
+
+export const runtime = "nodejs";
 
 export async function GET() {
-  const products = listProducts({ onlyActive: true });
+  const integration = getMoyskladIntegration();
+  let products = listProducts({ onlyActive: true });
+
+  const catalogStoreId = integration.catalog_store_id?.toString().trim() ?? "";
+  if (integration.enabled && integration.catalog_use_stock_filter && catalogStoreId) {
+    try {
+      const inStock = await listMoyskladInStockProductIdsByStore(catalogStoreId);
+      products = products.filter((p) => {
+        const moyId = p.moysklad_id ? String(p.moysklad_id) : "";
+        if (!moyId) return true;
+        return inStock.has(moyId);
+      });
+    } catch {
+      // If MoySklad is temporarily unavailable, keep serving the full catalog.
+    }
+  }
+
   const imagesByProductId = new Map<number, string[]>();
   store.product_images.forEach((img) => {
     const pid = Number(img.product_id);

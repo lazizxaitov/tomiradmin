@@ -48,6 +48,9 @@ type MoyskladSettings = {
   authMode: "token" | "basic";
   priceTypeId: string | null;
   priceTypeName: string | null;
+  catalogStoreId: string | null;
+  catalogStoreName: string | null;
+  catalogUseStockFilter: boolean;
   lastSyncAt: string | null;
   lastSyncError: string | null;
   hasCredentials: boolean;
@@ -107,8 +110,12 @@ export default function SettingsPage() {
   const [moyPassword, setMoyPassword] = useState("");
 
   // Re-attach to a running sync job after refresh/navigation.
-  const pollMoySync = (label: string, timeoutMs: number, onDone: (message: string) => void) => {
-    const startedAt = Date.now();
+  const pollMoySync = (
+    label: string,
+    timeoutMs: number,
+    startedAt: number,
+    onDone: (message: string) => void,
+  ) => {
     const poll = async () => {
       const status = await fetch("/api/moysklad/sync", { cache: "no-store" }).catch(() => null);
       const data = await status?.json().catch(() => null);
@@ -183,7 +190,7 @@ export default function SettingsPage() {
         if (mode === "customers") {
           setMoySyncingCustomers(true);
           setMoyMessage("Синхронизация клиентов запущена...");
-          pollMoySync("Синхронизация клиентов", 15 * 60 * 1000, (msg) => {
+          pollMoySync("Синхронизация клиентов", 15 * 60 * 1000, Date.now(), (msg) => {
             setMoySyncingCustomers(false);
             setMoyMessage(msg === "Синхронизация клиентов завершена" ? "Клиенты синхронизированы" : msg);
           });
@@ -192,7 +199,7 @@ export default function SettingsPage() {
 
         setMoySyncingCatalog(true);
         setMoyMessage("Синхронизация запущена...");
-        pollMoySync("Синхронизация", 15 * 60 * 1000, (msg) => {
+        pollMoySync("Синхронизация", 15 * 60 * 1000, Date.now(), (msg) => {
           setMoySyncingCatalog(false);
           setMoyMessage(msg === "Синхронизация завершена" ? "Каталог синхронизирован" : msg);
         });
@@ -324,6 +331,9 @@ export default function SettingsPage() {
       authMode: moy.authMode,
       priceTypeId: moy.priceTypeId,
       priceTypeName: moy.priceTypeName,
+      catalogStoreId: moy.catalogStoreId,
+      catalogStoreName: moy.catalogStoreName,
+      catalogUseStockFilter: moy.catalogUseStockFilter,
     };
 
     // Send secrets only if user typed something (empty means "keep current").
@@ -403,6 +413,55 @@ export default function SettingsPage() {
         setMoySyncingCatalog(false);
         load();
         setMoyMessage(lastError ? lastError : "Каталог синхронизирован");
+        return;
+      }
+      if (Date.now() - startedAt > 15 * 60 * 1000) {
+        setMoySyncingCatalog(false);
+        load();
+        setMoyMessage("Синхронизация выполняется слишком долго. Проверьте позже.");
+        return;
+      }
+      setTimeout(poll, 2000);
+    };
+    setTimeout(poll, 1200);
+  };
+
+  const fullSyncCatalog = async () => {
+    setMoySyncingCatalog(true);
+    setMoyMessage(null);
+    const res = await fetch("/api/moysklad/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "catalog", incremental: false }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setMoySyncingCatalog(false);
+      const data = await res?.json().catch(() => null);
+      setMoyMessage(data?.error?.toString() || "Ошибка синхронизации");
+      load();
+      return;
+    }
+
+    setMoyMessage("Полная синхронизация запущена...");
+    const startedAt = Date.now();
+    const poll = async () => {
+      const status = await fetch("/api/moysklad/sync", { cache: "no-store" }).catch(() => null);
+      const data = await status?.json().catch(() => null);
+      const running = Boolean(data?.job?.running);
+      const lastError = data?.job?.lastError?.toString?.() ?? null;
+      const progress = data?.job?.progress ?? null;
+      if (running && progress && typeof progress.processed === "number") {
+        const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        setMoyMessage(
+          total
+            ? `Полная синхронизация... ${progress.processed}/${total}`
+            : `Полная синхронизация... ${progress.processed}`,
+        );
+      }
+      if (!running) {
+        setMoySyncingCatalog(false);
+        load();
+        setMoyMessage(lastError ? lastError : "Каталог пересинхронизирован");
         return;
       }
       if (Date.now() - startedAt > 15 * 60 * 1000) {
@@ -776,6 +835,50 @@ export default function SettingsPage() {
               </select>
             </label>
 
+            <label className="text-sm font-semibold text-[#3c2828]">
+              Склад для каталога (необязательно)
+              <select
+                value={moy.catalogStoreId ?? ""}
+                onChange={(event) => {
+                  const nextId = event.target.value || null;
+                  const nextName = moyStores.find((item) => item.id === nextId)?.name ?? null;
+                  setMoy((prev) =>
+                    prev ? { ...prev, catalogStoreId: nextId, catalogStoreName: nextName } : prev,
+                  );
+                }}
+                className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+              >
+                <option value="">Не выбран</option>
+                {moyStores.map((item) => (
+                  <option key={item.id ?? item.name} value={item.id ?? ""}>
+                    {item.name ?? "Без названия"}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs font-normal text-[#8d7374]">
+                Если выбрать склад, в мобильном приложении будут показаны только товары с остатком на этом складе.
+              </span>
+            </label>
+
+            <label className="text-sm font-semibold text-[#3c2828]">
+              Работать по остаткам
+              <select
+                value={moy.catalogUseStockFilter ? "1" : "0"}
+                onChange={(event) =>
+                  setMoy((prev) =>
+                    prev ? { ...prev, catalogUseStockFilter: event.target.value === "1" } : prev,
+                  )
+                }
+                className="mt-2 w-full rounded-2xl border border-[#dce4ec] bg-white px-4 py-3 text-sm"
+              >
+                <option value="0">Нет</option>
+                <option value="1">Да</option>
+              </select>
+              <span className="mt-1 block text-xs font-normal text-[#8d7374]">
+                При включении и выборе склада: в мобилке показываются только товары, которые есть в остатке этого склада.
+              </span>
+            </label>
+
             <div className="grid gap-4 md:grid-cols-3">
               <div className="rounded-2xl border border-[#e7e0dc] bg-white px-4 py-3 text-sm text-[#6f5b5c]">
                 <p className="font-semibold text-[#3c2828]">Ключ</p>
@@ -800,6 +903,9 @@ export default function SettingsPage() {
               </GhostButton>
               <GhostButton onClick={syncCatalog} disabled={moySyncingCatalog}>
                 {moySyncingCatalog ? "Синхронизирую..." : "Синхронизировать каталог"}
+              </GhostButton>
+              <GhostButton onClick={fullSyncCatalog} disabled={moySyncingCatalog}>
+                {moySyncingCatalog ? "Синхронизирую..." : "Полная синхронизация"}
               </GhostButton>
               <GhostButton onClick={refreshMoyskladImages} disabled={moySyncingCatalog}>
                 {moySyncingCatalog ? "Синхронизирую..." : "Обновить фото"}
@@ -979,4 +1085,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

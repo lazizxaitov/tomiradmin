@@ -20,6 +20,10 @@ export async function GET() {
       authMode: integration.auth_mode,
       priceTypeId: integration.price_type_id,
       priceTypeName: integration.price_type_name,
+      catalogStoreId: integration.catalog_store_id ?? null,
+      catalogStoreName: integration.catalog_store_name ?? null,
+      catalogUseStockFilter: Boolean(integration.catalog_use_stock_filter),
+      catalogProductsSyncedAt: integration.catalog_products_synced_at ?? null,
       lastSyncAt: integration.last_sync_at,
       lastSyncError: integration.last_sync_error,
       hasCredentials: hasMoyskladCredentials(),
@@ -78,6 +82,24 @@ export async function PUT(request: Request) {
     updateMoyskladIntegration({ priceTypeId, priceTypeName });
   }
 
+  const catalogStoreId =
+    body?.catalogStoreId !== undefined
+      ? body?.catalogStoreId?.toString()?.trim() || null
+      : undefined;
+  const catalogStoreName =
+    body?.catalogStoreName !== undefined
+      ? body?.catalogStoreName?.toString()?.trim() || null
+      : undefined;
+  if (catalogStoreId !== undefined || catalogStoreName !== undefined) {
+    updateMoyskladIntegration({ catalogStoreId, catalogStoreName });
+  }
+
+  const catalogUseStockFilter =
+    body?.catalogUseStockFilter !== undefined ? Boolean(body.catalogUseStockFilter) : undefined;
+  if (catalogUseStockFilter !== undefined) {
+    updateMoyskladIntegration({ catalogUseStockFilter });
+  }
+
   const integration = getMoyskladIntegration();
   return NextResponse.json({
     item: {
@@ -86,6 +108,10 @@ export async function PUT(request: Request) {
       authMode: integration.auth_mode,
       priceTypeId: integration.price_type_id,
       priceTypeName: integration.price_type_name,
+      catalogStoreId: integration.catalog_store_id ?? null,
+      catalogStoreName: integration.catalog_store_name ?? null,
+      catalogUseStockFilter: Boolean(integration.catalog_use_stock_filter),
+      catalogProductsSyncedAt: integration.catalog_products_synced_at ?? null,
       lastSyncAt: integration.last_sync_at,
       lastSyncError: integration.last_sync_error,
       hasCredentials: hasMoyskladCredentials(),
