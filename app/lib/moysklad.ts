@@ -481,9 +481,11 @@ export async function syncMoyskladCatalog(options?: {
       const productId = Number(product?.id ?? 0);
       const moyId = product?.moysklad_id ? String(product.moysklad_id) : "";
       if (!productId || !moyId) return false;
-      if (!forceImages && !newProductIds.includes(productId)) return false;
       const current = store.product_images.filter((img: any) => Number(img.product_id) === productId);
       const hasAny = current.length > 0;
+      const shouldSyncMissing = !hasAny; // always fill missing images during catalog sync
+      const shouldSyncNew = newProductIds.includes(productId);
+      if (!forceImages && !(shouldSyncNew || shouldSyncMissing)) return false;
       const hasMoysklad = current.some((img: any) => String(img.url ?? "").startsWith("/uploads/moysklad/"));
       if (hasAny && !(forceImages && hasMoysklad)) return false;
       return true;
@@ -528,13 +530,11 @@ export async function syncMoyskladCatalog(options?: {
       }
 
       imagesProcessed += 1;
-      if (forceImages || newProductIds.length > 0) {
-        reportProgress({
-          stage: "images",
-          processed: imagesProcessed,
-          total: imageTargets.length,
-        });
-      }
+      reportProgress({
+        stage: "images",
+        processed: imagesProcessed,
+        total: imageTargets.length,
+      });
     }
 
     // Keep existing branch list, only attempt to auto-map by name if empty.
