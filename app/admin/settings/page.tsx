@@ -71,6 +71,13 @@ const emptyPointForm: PickupPointForm = {
 };
 
 export default function SettingsPage() {
+  const formatElapsed = (ms: number) => {
+    const seconds = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
   const [form, setForm] = useState<Settings>({
     cafe_name: "",
     phone: "",
@@ -124,7 +131,12 @@ export default function SettingsPage() {
       const progress = data?.job?.progress ?? null;
       if (running && progress && typeof progress.processed === "number") {
         const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
-        setMoyMessage(total ? `${label}... ${progress.processed}/${total}` : `${label}... ${progress.processed}`);
+        const elapsed = formatElapsed(Date.now() - startedAt);
+        setMoyMessage(
+          total
+            ? `${label}... ${progress.processed}/${total} • ${elapsed}`
+            : `${label}... ${progress.processed} • ${elapsed}`,
+        );
       }
       if (!running) {
         load();
@@ -403,10 +415,11 @@ export default function SettingsPage() {
       const progress = data?.job?.progress ?? null;
       if (running && progress && typeof progress.processed === "number") {
         const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        const elapsed = formatElapsed(Date.now() - startedAt);
         setMoyMessage(
           total
-            ? `Синхронизация... ${progress.processed}/${total}`
-            : `Синхронизация... ${progress.processed}`,
+            ? `Синхронизация... ${progress.processed}/${total} • ${elapsed}`
+            : `Синхронизация... ${progress.processed} • ${elapsed}`,
         );
       }
       if (!running) {
@@ -452,10 +465,11 @@ export default function SettingsPage() {
       const progress = data?.job?.progress ?? null;
       if (running && progress && typeof progress.processed === "number") {
         const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        const elapsed = formatElapsed(Date.now() - startedAt);
         setMoyMessage(
           total
-            ? `Полная синхронизация... ${progress.processed}/${total}`
-            : `Полная синхронизация... ${progress.processed}`,
+            ? `Полная синхронизация... ${progress.processed}/${total} • ${elapsed}`
+            : `Полная синхронизация... ${progress.processed} • ${elapsed}`,
         );
       }
       if (!running) {
@@ -501,10 +515,11 @@ export default function SettingsPage() {
       const progress = data?.job?.progress ?? null;
       if (running && progress && typeof progress.processed === "number") {
         const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        const elapsed = formatElapsed(Date.now() - startedAt);
         setMoyMessage(
           total
-            ? `Обновление фото... ${progress.processed}/${total}`
-            : `Обновление фото... ${progress.processed}`,
+            ? `Обновление фото... ${progress.processed}/${total} • ${elapsed}`
+            : `Обновление фото... ${progress.processed} • ${elapsed}`,
         );
       }
       if (!running) {
@@ -550,10 +565,11 @@ export default function SettingsPage() {
       const progress = data?.job?.progress ?? null;
       if (running && progress && typeof progress.processed === "number") {
         const total = typeof progress.total === "number" && progress.total > 0 ? progress.total : null;
+        const elapsed = formatElapsed(Date.now() - startedAt);
         setMoyMessage(
           total
-            ? `Синхронизация... ${progress.processed}/${total}`
-            : `Синхронизация... ${progress.processed}`,
+            ? `Синхронизация... ${progress.processed}/${total} • ${elapsed}`
+            : `Синхронизация... ${progress.processed} • ${elapsed}`,
         );
       }
       if (!running) {

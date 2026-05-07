@@ -22,6 +22,24 @@ type StockRow = {
   meta?: { href?: string | null };
 };
 
+function createProgressReporter(
+  onProgress: ((progress: { stage: string; processed: number; total: number | null }) => void) | undefined,
+  minIntervalMs = 700,
+) {
+  let lastAt = 0;
+  let lastKey = "";
+  return (progress: { stage: string; processed: number; total: number | null }) => {
+    if (!onProgress) return;
+    const now = Date.now();
+    const key = `${progress.stage}:${progress.processed}:${progress.total ?? ""}`;
+    if (key === lastKey) return;
+    if (now - lastAt < minIntervalMs) return;
+    lastAt = now;
+    lastKey = key;
+    onProgress(progress);
+  };
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -318,6 +336,8 @@ export async function syncMoyskladCatalog(options?: {
   if (!integration.enabled) throw new Error("РРЅС‚РµРіСЂР°С†РёСЏ РњРѕР№РЎРєР»Р°Рґ РІС‹РєР»СЋС‡РµРЅР°");
   requireAuth();
 
+  const reportProgress = createProgressReporter(options?.onProgress);
+
   const incremental = Boolean(options?.incremental);
   if (incremental) {
     const existingCategoriesByMoyId = new Map<string, any>();
@@ -406,6 +426,11 @@ export async function syncMoyskladCatalog(options?: {
         const moyId = product?.id ? String(product.id) : "";
         if (!moyId) continue;
         processed += 1;
+        reportProgress({
+          stage: "products",
+          processed,
+          total: Number.isFinite(page.total) ? page.total : null,
+        });
         if (existingProductsByMoyId.has(moyId)) continue;
 
         const folderId = extractId(product?.productFolder?.meta);
@@ -449,11 +474,6 @@ export async function syncMoyskladCatalog(options?: {
       }
 
       if (added > 0) await persistStore();
-      options?.onProgress?.({
-        stage: "products",
-        processed,
-        total: Number.isFinite(page.total) ? page.total : null,
-      });
     }
 
     const forceImages = Boolean(options?.forceImages);
@@ -509,7 +529,7 @@ export async function syncMoyskladCatalog(options?: {
 
       imagesProcessed += 1;
       if (forceImages || newProductIds.length > 0) {
-        options?.onProgress?.({
+        reportProgress({
           stage: "images",
           processed: imagesProcessed,
           total: imageTargets.length,
@@ -619,6 +639,11 @@ export async function syncMoyskladCatalog(options?: {
       if (!moyId) continue;
       seenMoyProductIds.add(moyId);
       processed += 1;
+      reportProgress({
+        stage: "products",
+        processed,
+        total: Number.isFinite(page.total) ? page.total : null,
+      });
 
       const existing = mergedByMoyId.get(moyId) ?? existingProductsByMoyId.get(moyId) ?? null;
       const id = existing?.id ? Number(existing.id) : nextProductId++;
@@ -662,11 +687,6 @@ export async function syncMoyskladCatalog(options?: {
 
     store.products = [...nonMoyProducts, ...Array.from(mergedByMoyId.values())] as any;
     await persistStore();
-    options?.onProgress?.({
-      stage: "products",
-      processed,
-      total: Number.isFinite(page.total) ? page.total : null,
-    });
   }
 
   // Drop MoySklad products that no longer exist.
@@ -736,7 +756,7 @@ export async function syncMoyskladCatalog(options?: {
 
     imagesProcessed += 1;
     if (forceImages) {
-      options?.onProgress?.({
+      reportProgress({
         stage: "images",
         processed: imagesProcessed,
         total: imageTargets.length,
