@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const ext = extensionFromFile(file);
   const filename = `${Date.now()}-${randomUUID()}.${ext}`;
   const relativeDir = path.join("uploads");
-  const absoluteDir = path.join(process.cwd(), "public", relativeDir);
+  const absoluteDir = path.join(process.cwd(), "data", relativeDir);
   const absolutePath = path.join(absoluteDir, filename);
 
   await mkdir(absoluteDir, { recursive: true });

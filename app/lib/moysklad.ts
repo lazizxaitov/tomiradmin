@@ -257,7 +257,7 @@ async function downloadImageToUploads(downloadHref: string, suggestedName: strin
   const buffer = await toSquareJpegIfPossible(original).catch(() => original);
 
   const safeNameBase = suggestedName.replace(/[^a-z0-9_.-]/gi, "_").slice(0, 120) || "image";
-  const uploadsDir = path.join(process.cwd(), "public", "uploads", "moysklad");
+  const uploadsDir = path.join(process.cwd(), "data", "uploads", "moysklad");
   mkdirSync(uploadsDir, { recursive: true });
   const fileName = `${Date.now()}-${safeNameBase.replace(/\.(png|jpe?g|webp|gif)$/i, "")}.jpg`;
   const fullPath = path.join(uploadsDir, fileName);
