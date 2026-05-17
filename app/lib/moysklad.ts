@@ -126,7 +126,7 @@ export function setMoyskladCredentials(input: {
 
 function requireAuth() {
   const auth = authHeader();
-  if (!auth) throw new Error("РќРµ Р·Р°РґР°РЅ С‚РѕРєРµРЅ/Р»РѕРіРёРЅ/РїР°СЂРѕР»СЊ РњРѕР№РЎРєР»Р°Рґ");
+  if (!auth) throw new Error("Не задан токен/логин/пароль МойСклад");
   return auth;
 }
 
@@ -249,10 +249,10 @@ async function downloadImageToUploads(downloadHref: string, suggestedName: strin
     cache: "no-store",
   });
   const location = first.headers.get("location")?.trim() || "";
-  if (!location) throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃСЃС‹Р»РєСѓ РЅР° РёР·РѕР±СЂР°Р¶РµРЅРёРµ");
+  if (!location) throw new Error("Не удалось получить ссылку на изображение");
 
   const imgRes = await fetch(location, { cache: "no-store" });
-  if (!imgRes.ok) throw new Error(`РќРµ СѓРґР°Р»РѕСЃСЊ СЃРєР°С‡Р°С‚СЊ РёР·РѕР±СЂР°Р¶РµРЅРёРµ (${imgRes.status})`);
+  if (!imgRes.ok) throw new Error(`Не удалось скачать изображение (${imgRes.status})`);
   const original = Buffer.from(await imgRes.arrayBuffer());
   const buffer = await toSquareJpegIfPossible(original).catch(() => original);
 
@@ -285,7 +285,7 @@ async function toSquareJpegIfPossible(input: Buffer) {
 
 export async function testMoyskladConnection() {
   const auth = authHeader();
-  if (!auth) throw new Error("РќРµ Р·Р°РґР°РЅ С‚РѕРєРµРЅ/Р»РѕРіРёРЅ/РїР°СЂРѕР»СЊ РњРѕР№РЎРєР»Р°Рґ");
+  if (!auth) throw new Error("Не задан токен/логин/пароль МойСклад");
   const url = `${baseUrl()}/entity/store?limit=1`;
   const response = await fetch(url, {
     headers: { Authorization: auth, Accept: "application/json;charset=utf-8" },
@@ -361,7 +361,7 @@ export async function syncMoyskladCatalog(options?: {
   onProgress?: (progress: { stage: string; processed: number; total: number | null }) => void;
 }) {
   const integration = getMoyskladIntegration();
-  if (!integration.enabled) throw new Error("РРЅС‚РµРіСЂР°С†РёСЏ РњРѕР№РЎРєР»Р°Рґ РІС‹РєР»СЋС‡РµРЅР°");
+  if (!integration.enabled) throw new Error("Интеграция МойСклад выключена");
   requireAuth();
 
   const reportProgress = createProgressReporter(options?.onProgress);
@@ -844,7 +844,7 @@ async function* fetchPages<T>(pathName: string, params?: Record<string, string>)
 
 export async function syncMoyskladCustomers() {
   const integration = getMoyskladIntegration();
-  if (!integration.enabled) throw new Error("РРЅС‚РµРіСЂР°С†РёСЏ РњРѕР№РЎРєР»Р°Рґ РІС‹РєР»СЋС‡РµРЅР°");
+  if (!integration.enabled) throw new Error("Интеграция МойСклад выключена");
   requireAuth();
 
   const counterparties = await fetchAll<any>("/entity/counterparty");
