@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 export const runtime = "nodejs";
@@ -28,16 +29,23 @@ export async function GET(
   const { path: parts } = await params;
   const safeParts = Array.isArray(parts) ? parts.filter(Boolean) : [];
 
-  const baseDir = path.join(process.cwd(), "data", "uploads");
-  const filePath = path.join(baseDir, ...safeParts);
-  const resolvedBase = path.resolve(baseDir) + path.sep;
-  const resolvedFile = path.resolve(filePath);
+  const candidateBases = [
+    path.join(process.cwd(), "public", "uploads"),
+    path.join(process.cwd(), "data", "uploads"),
+  ];
 
-  if (!resolvedFile.startsWith(resolvedBase)) {
-    return new Response("Not found", { status: 404 });
-  }
+  for (const baseDir of candidateBases) {
+    const filePath = path.join(baseDir, ...safeParts);
+    const resolvedBase = path.resolve(baseDir) + path.sep;
+    const resolvedFile = path.resolve(filePath);
 
-  try {
+    if (!resolvedFile.startsWith(resolvedBase)) {
+      continue;
+    }
+    if (!existsSync(resolvedFile)) {
+      continue;
+    }
+
     const bytes = await readFile(resolvedFile);
     const ext = path.extname(resolvedFile);
     return new Response(bytes, {
@@ -47,8 +55,7 @@ export async function GET(
         "Cache-Control": "public, max-age=31536000, immutable",
       },
     });
-  } catch {
-    return new Response("Not found", { status: 404 });
   }
-}
 
+  return new Response("Not found", { status: 404 });
+}
